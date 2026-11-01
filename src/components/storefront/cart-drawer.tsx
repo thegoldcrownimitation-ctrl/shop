@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   Truck,
   Sparkles,
+  Loader2,
+  Lock,
 } from "lucide-react";
 import { useCart } from "./cart-context";
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,8 @@ export function CartDrawer() {
     removeItem,
     openCheckout,
     loading,
+    isCheckingOut,
+    checkoutError,
   } = useCart();
 
   // Close on Escape key press
@@ -53,68 +57,82 @@ export function CartDrawer() {
     };
   }, [isDrawerOpen]);
 
-  if (!isDrawerOpen) return null;
+  const currencyCode = lines[0]?.currencyCode || "INR";
+  const freeShippingProgress = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
+  const amountNeeded = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
 
-  const currencyCode = lines[0]?.currencyCode ?? "INR";
-  const progressPercent = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
-  const diffToFree = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+  if (!isDrawerOpen) {
+    return null;
+  }
 
   return (
-    <div className="cart-drawer-overlay" onClick={closeDrawer} role="dialog" aria-modal="true">
+    <div
+      className="cart-drawer-overlay open"
+      onClick={closeDrawer}
+      aria-hidden="false"
+    >
       <aside
-        className="cart-drawer"
+        className={`cart-drawer ${isDrawerOpen ? "open" : ""}`}
         onClick={(e) => e.stopPropagation()}
-        aria-label="Shopping bag drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Shopping Bag"
       >
         {/* Drawer Header */}
         <div className="cart-drawer-header">
           <div className="cart-drawer-title">
             <ShoppingBag size={20} className="text-primary" />
-            <h2>Your Shopping Bag</h2>
-            <span className="cart-count-badge">({count})</span>
+            <h2>Shopping Bag</h2>
+            {count > 0 && <span className="cart-drawer-count">({count})</span>}
           </div>
           <button
+            type="button"
             className="cart-drawer-close"
             onClick={closeDrawer}
-            aria-label="Close bag drawer"
+            aria-label="Close bag"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Free Shipping Motivator */}
-        <div className="shipping-progress-banner">
-          <div className="shipping-banner-text">
-            <Truck size={15} />
-            {diffToFree === 0 ? (
-              <span>
-                <strong>Complimentary shipping unlocked!</strong> Delivery is on us.
-              </span>
+        {/* Free Shipping Meter */}
+        <div className="cart-drawer-shipping-meter">
+          <div className="shipping-meter-text">
+            {amountNeeded > 0 ? (
+              <>
+                <Truck size={14} className="text-primary" />
+                <span>
+                  Add <strong>{money(amountNeeded, currencyCode)}</strong> more for{" "}
+                  <span className="text-primary font-semibold">FREE Express Delivery</span>
+                </span>
+              </>
             ) : (
-              <span>
-                Add <strong>{money(diffToFree, currencyCode)}</strong> more to get{" "}
-                <strong>Free Delivery</strong>
-              </span>
+              <>
+                <Sparkles size={14} className="text-primary" />
+                <span className="text-primary font-semibold">
+                  You've unlocked FREE Express Delivery!
+                </span>
+              </>
             )}
           </div>
-          <div className="shipping-progress-track">
+          <div className="shipping-meter-bar">
             <div
-              className="shipping-progress-fill"
-              style={{ width: `${progressPercent}%` }}
+              className="shipping-meter-fill"
+              style={{ width: `${freeShippingProgress}%` }}
             />
           </div>
         </div>
 
-        {/* Drawer Items List */}
-        {count === 0 ? (
+        {/* Drawer Items */}
+        {lines.length === 0 ? (
           <div className="cart-drawer-empty">
-            <div className="empty-icon-wrap">
-              <ShoppingBag size={44} strokeWidth={1.5} />
+            <div className="empty-icon-wrapper">
+              <ShoppingBag size={48} className="text-muted-foreground" />
             </div>
-            <h3>Your bag is waiting</h3>
-            <p>Explore our handcrafted imitation jewellery collections and discover something magical.</p>
+            <h3>Your bag is currently empty</h3>
+            <p>Explore our handcrafted imitation jewellery pieces designed to make you shine.</p>
             <Button
-              className="mt-4"
+              className="w-full mt-4"
               onClick={() => {
                 closeDrawer();
               }}
@@ -177,7 +195,7 @@ export function CartDrawer() {
                         type="button"
                         className="qty-btn"
                         aria-label="Decrease quantity"
-                        disabled={loading || line.quantity <= 1}
+                        disabled={loading || isCheckingOut || line.quantity <= 1}
                         onClick={() => line.lineId && updateItem(line.lineId, line.quantity - 1)}
                       >
                         <Minus size={12} />
@@ -187,7 +205,7 @@ export function CartDrawer() {
                         type="button"
                         className="qty-btn"
                         aria-label="Increase quantity"
-                        disabled={loading || line.quantity >= 99}
+                        disabled={loading || isCheckingOut || line.quantity >= 99}
                         onClick={() => line.lineId && updateItem(line.lineId, line.quantity + 1)}
                       >
                         <Plus size={12} />
@@ -198,7 +216,7 @@ export function CartDrawer() {
                       type="button"
                       className="drawer-item-remove"
                       aria-label="Remove item"
-                      disabled={loading}
+                      disabled={loading || isCheckingOut}
                       onClick={() => line.lineId && removeItem(line.lineId)}
                     >
                       <Trash2 size={14} />
@@ -219,16 +237,37 @@ export function CartDrawer() {
             </div>
             <p className="drawer-tax-note">Taxes and delivery calculated at checkout.</p>
 
+            {checkoutError && (
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: 6,
+                  background: "hsl(var(--destructive) / 0.1)",
+                  border: "1px solid hsl(var(--destructive) / 0.3)",
+                  color: "hsl(var(--destructive))",
+                  fontSize: "0.8rem",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                {checkoutError}
+              </div>
+            )}
+
             <div className="drawer-action-buttons">
               <Button
                 className="drawer-checkout-btn w-full"
-                onClick={() => {
-                  closeDrawer();
-                  openCheckout();
-                }}
-                disabled={loading}
+                onClick={openCheckout}
+                disabled={loading || isCheckingOut || count === 0}
               >
-                Proceed to Checkout <ArrowRight size={16} />
+                {isCheckingOut ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Loader2 size={16} className="animate-spin" /> Connecting to Secure Checkout...
+                  </span>
+                ) : (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Lock size={15} /> Proceed to Checkout <ArrowRight size={16} />
+                  </span>
+                )}
               </Button>
 
               <Button
@@ -236,14 +275,20 @@ export function CartDrawer() {
                 className="w-full mt-2"
                 asChild
                 onClick={closeDrawer}
+                disabled={isCheckingOut}
               >
                 <Link to="/cart">View Full Bag</Link>
               </Button>
             </div>
 
-            <div className="drawer-security-note">
-              <ShieldCheck size={14} />
-              <span>Secure checkout powered by Shopify</span>
+            <div className="drawer-security-note" style={{ textAlign: "center", marginTop: "0.85rem" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", fontSize: "0.78rem", color: "hsl(var(--muted-foreground))" }}>
+                <ShieldCheck size={14} className="text-primary" />
+                <span>100% Secure Checkout powered by Shopify & Razorpay</span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "hsl(var(--muted-foreground) / 0.8)", marginTop: "0.25rem", letterSpacing: "0.02em" }}>
+                UPI (GPay, PhonePe, Paytm) • Cards • NetBanking • Wallets
+              </div>
             </div>
           </div>
         )}

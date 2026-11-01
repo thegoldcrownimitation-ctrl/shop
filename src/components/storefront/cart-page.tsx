@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ShoppingBag, Minus, Plus, Trash2, Tag, Loader2, AlertCircle, ExternalLink } from "lucide-react";
+import { ShoppingBag, Minus, Plus, Trash2, Tag, Loader2, AlertCircle, ExternalLink, Lock, ArrowRight, ShieldCheck } from "lucide-react";
 import { useCart } from "./cart-context";
 import { products as demoProducts, money } from "@/data/store";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ export function CartPage() {
 // ─── Shopify Cart Page ────────────────────────────────────────────────────────
 
 function ShopifyCartPage() {
-  const { lines, count, subtotal, total, checkoutUrl, discountCodes, loading, error,
+  const { lines, count, subtotal, total, checkoutUrl, discountCodes, loading, isCheckingOut, error, checkoutError,
     updateItem, removeItem, applyDiscount, removeDiscount, openCheckout } = useCart();
   const [discountInput, setDiscountInput] = useState("");
   const [discountError, setDiscountError] = useState<string | null>(null);
@@ -115,7 +115,7 @@ function ShopifyCartPage() {
                       variant="ghost"
                       size="icon"
                       aria-label={`Decrease ${line.productTitle} quantity`}
-                      disabled={loading || line.quantity <= 1}
+                      disabled={loading || isCheckingOut || line.quantity <= 1}
                       onClick={() => line.lineId && updateItem(line.lineId, line.quantity - 1)}
                     >
                       <Minus size={14} />
@@ -125,7 +125,7 @@ function ShopifyCartPage() {
                       variant="ghost"
                       size="icon"
                       aria-label={`Increase ${line.productTitle} quantity`}
-                      disabled={loading || line.quantity >= 99}
+                      disabled={loading || isCheckingOut || line.quantity >= 99}
                       onClick={() => line.lineId && updateItem(line.lineId, line.quantity + 1)}
                     >
                       <Plus size={14} />
@@ -144,7 +144,7 @@ function ShopifyCartPage() {
                       variant="ghost"
                       size="icon"
                       aria-label={`Remove ${line.productTitle}`}
-                      disabled={loading}
+                      disabled={loading || isCheckingOut}
                       onClick={() => line.lineId && removeItem(line.lineId)}
                     >
                       <Trash2 size={16} />
@@ -203,7 +203,7 @@ function ShopifyCartPage() {
                 <Button
                   variant="outline"
                   onClick={handleApplyDiscount}
-                  disabled={applyingDiscount || !discountInput.trim()}
+                  disabled={applyingDiscount || isCheckingOut || !discountInput.trim()}
                 >
                   {applyingDiscount ? <Loader2 size={14} className="animate-spin" /> : "Apply"}
                 </Button>
@@ -215,18 +215,57 @@ function ShopifyCartPage() {
               Taxes and shipping are calculated at checkout.
             </p>
 
+            {checkoutError && (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  borderRadius: 6,
+                  background: "hsl(var(--destructive) / 0.1)",
+                  border: "1px solid hsl(var(--destructive) / 0.3)",
+                  color: "hsl(var(--destructive))",
+                  fontSize: "0.85rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                {checkoutError}
+              </div>
+            )}
+
             <Button
               onClick={openCheckout}
-              disabled={loading || !count}
-              className="checkout-btn"
+              disabled={loading || isCheckingOut || !count}
+              className="checkout-btn w-full"
             >
-              <ExternalLink size={16} />
-              Proceed to Shopify Checkout
+              {isCheckingOut ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Loader2 size={16} className="animate-spin" /> Connecting to Secure Checkout...
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Lock size={15} /> Proceed to Shopify Checkout <ArrowRight size={16} />
+                </span>
+              )}
             </Button>
 
-            <p className="cart-secure-note">
-              Secure checkout powered by Shopify. No payment information is stored on this site.
-            </p>
+            <div
+              className="cart-security-badge"
+              style={{
+                marginTop: "1.25rem",
+                padding: "0.85rem",
+                borderRadius: "8px",
+                background: "hsl(var(--muted) / 0.4)",
+                border: "1px solid hsl(var(--border) / 0.5)",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.45rem", fontSize: "0.82rem", fontWeight: 500 }}>
+                <ShieldCheck size={16} className="text-primary" />
+                <span>100% Secure Checkout powered by Shopify & Razorpay</span>
+              </div>
+              <p style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))", marginTop: "0.35rem", marginBottom: 0 }}>
+                Accepting UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, NetBanking (50+ Banks) & Wallets.
+              </p>
+            </div>
 
             <Link className="text-link mt-4" to="/shop">
               Continue shopping

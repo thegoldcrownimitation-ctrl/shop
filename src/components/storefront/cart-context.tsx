@@ -3,8 +3,8 @@
  * with seamless graceful demo-state fallback so the store is always 100% interactive.
  *
  * In Shopify mode, all cart operations go to the Storefront Cart API and
- * the cart ID is persisted in localStorage. Checkout navigates to the
- * Shopify-hosted checkout URL.
+ * the cart ID is persisted in localStorage. Checkout links buyer identity (if logged in)
+ * and navigates to the Shopify-hosted checkout URL powered by Razorpay.
  */
 
 import type React from "react";
@@ -27,9 +27,12 @@ import {
   updateCartLines,
   removeCartLines,
   applyDiscountCode as applyDiscountCodeAPI,
+  updateCartBuyerIdentity,
+  getFreshCheckoutUrl,
   type ShopifyCart,
   type ShopifyCartLine,
 } from "@/services/shopify-cart";
+import { useCustomer } from "./customer-context";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +65,8 @@ export interface CartState {
   discountCodes: { code: string; applicable: boolean }[];
   loading: boolean;
   error: string | null;
+  isCheckingOut: boolean;
+  checkoutError: string | null;
 
   // Drawer control
   isDrawerOpen: boolean;
@@ -74,7 +79,7 @@ export interface CartState {
   removeItem: (lineId: string) => Promise<void>;
   applyDiscount: (code: string) => Promise<void>;
   removeDiscount: () => Promise<void>;
-  openCheckout: () => void;
+  openCheckout: () => Promise<void>;
 
   // Legacy demo-mode helpers
   add: (item: CartItem) => void;
@@ -98,6 +103,8 @@ const emptyCart: CartState = {
   discountCodes: [],
   loading: false,
   error: null,
+  isCheckingOut: false,
+  checkoutError: null,
   isDrawerOpen: false,
   openDrawer: () => {},
   closeDrawer: () => {},
@@ -106,7 +113,7 @@ const emptyCart: CartState = {
   removeItem: async () => {},
   applyDiscount: async () => {},
   removeDiscount: async () => {},
-  openCheckout: () => {},
+  openCheckout: async () => {},
   add: () => {},
   update: () => {},
   remove: () => {},
@@ -157,6 +164,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 // ─── Shopify Cart Provider ─────────────────────────────────────────────────────
 
 function ShopifyCartProvider({ children }: { children: ReactNode }) {
+  const customerContext = useCustomer();
+  const customer = customerContext?.customer ?? null;
+  const token = customerContext?.token ?? null;
+
   const [lines, setLines] = useState<CartLineItem[]>([]);
   const [count, setCount] = useState(0);
   const [subtotal, setSubtotal] = useState(0);
@@ -165,10 +176,12 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
   const [discountCodes, setDiscountCodes] = useState<{ code: string; applicable: boolean }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [cartId, setCartId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Fallback demo items in case Shopify API is temporarily unreachable or plan is pending
+  // Fallback demo items in case Shopify API is temporarily unreachable
   const [demoItems, setDemoItems] = useState<CartItem[]>([]);
 
   const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
@@ -290,15 +303,74 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
     await withCart(async (id) => applyDiscountCodeAPI(id, []));
   }, [withCart]);
 
-  const openCheckout = useCallback(() => {
-    if (checkoutUrl) {
-      window.location.href = checkoutUrl;
-    } else {
-      // Direct to Shopify checkout or store
-      const domain = import.meta.env["VITE_SHOPIFY_STORE_DOMAIN"] as string;
-      window.location.href = `https://${domain}/cart`;
+  // Authoritative Checkout Initiation
+  const openCheckout = useCallback(async () => {
+    if (isCheckingOut) return;
+    if (!count && !lines.length && !demoItems.length) return;
+
+    setIsCheckingOut(true);
+    setCheckoutError(null);
+
+    try {
+      let targetCartId = cartId;
+      if (!targetCartId) {
+        const fresh = await ensureCart();
+        targetCartId = fresh.id;
+        setCartId(targetCartId);
+      }
+
+      // If customer is logged in, attach their buyer identity to the Shopify cart
+      if (customer?.email) {
+        try {
+          const updated = await updateCartBuyerIdentity(targetCartId, {
+            email: customer.email,
+            customerAccessToken: token && token !== "oauth_session_active" ? token : undefined,
+          });
+          applyCart(updated);
+        } catch (buyerErr) {
+          console.warn("[cart] Could not attach buyer identity before checkout:", buyerErr);
+        }
+      }
+
+      // Fetch fresh, authoritative checkout URL from Shopify
+      let targetUrl = await getFreshCheckoutUrl(targetCartId);
+
+      if (!targetUrl || !targetUrl.startsWith("http")) {
+        throw new Error("Invalid checkout URL returned by Shopify.");
+      }
+
+      // Domain normalization:
+      // If Shopify generated a checkout URL pointing to the custom storefront domain (e.g. thegoldcrownjewellery.com)
+      // but DNS is pointing to Vercel, normalize hostname to the myshopify domain so checkout loads on Shopify's secure server.
+      const storeDomain = (import.meta.env["VITE_SHOPIFY_STORE_DOMAIN"] as string || "thegoldcrownimitation.myshopify.com")
+        .replace(/^['"]|['"]$/g, "")
+        .trim();
+
+      try {
+        const parsed = new URL(targetUrl);
+        if (
+          typeof window !== "undefined" &&
+          parsed.hostname === window.location.hostname &&
+          !window.location.hostname.includes("myshopify.com") &&
+          !window.location.hostname.startsWith("checkout.")
+        ) {
+          parsed.hostname = storeDomain;
+          targetUrl = parsed.toString();
+        }
+      } catch {
+        // ignore parse error
+      }
+
+      // Redirect customer to Shopify Hosted Checkout with Razorpay Payment Gateway
+      if (typeof window !== "undefined") {
+        window.location.href = targetUrl;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unable to redirect to checkout. Please try again.";
+      setCheckoutError(msg);
+      setIsCheckingOut(false);
     }
-  }, [checkoutUrl]);
+  }, [isCheckingOut, count, lines.length, demoItems.length, cartId, customer, token, applyCart]);
 
   // Demo fallback methods
   const add = (item: CartItem) => {
@@ -364,6 +436,8 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
     discountCodes,
     loading,
     error,
+    isCheckingOut,
+    checkoutError,
     isDrawerOpen,
     openDrawer,
     closeDrawer,
@@ -443,6 +517,8 @@ function DemoCartProvider({ children }: { children: ReactNode }) {
     discountCodes: [],
     loading: false,
     error: null,
+    isCheckingOut: false,
+    checkoutError: null,
     isDrawerOpen,
     openDrawer,
     closeDrawer,
@@ -451,7 +527,7 @@ function DemoCartProvider({ children }: { children: ReactNode }) {
     removeItem: async () => {},
     applyDiscount: async () => {},
     removeDiscount: async () => {},
-    openCheckout: () => {},
+    openCheckout: async () => {},
     add,
     update,
     remove,

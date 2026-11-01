@@ -192,6 +192,21 @@ const CART_DISCOUNT_CODES_UPDATE = /* GraphQL */ `
   }
 `;
 
+const CART_BUYER_IDENTITY_UPDATE = /* GraphQL */ `
+  ${CART_FIELDS}
+  mutation CartBuyerIdentityUpdate($cartId: ID!, $buyerIdentity: CartBuyerIdentityInput!) {
+    cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {
+      cart {
+        ...CartFields
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const GET_CART = /* GraphQL */ `
   ${CART_FIELDS}
   query GetCart($cartId: ID!) {
@@ -238,6 +253,13 @@ interface CartDiscountResponse {
   };
 }
 
+interface CartBuyerIdentityResponse {
+  cartBuyerIdentityUpdate: {
+    cart: ShopifyCart;
+    userErrors: { field: string; message: string }[];
+  };
+}
+
 interface GetCartResponse {
   cart: ShopifyCart | null;
 }
@@ -254,7 +276,7 @@ export function getPersistedCartId(): string | null {
   }
 }
 
-function persistCartId(id: string): void {
+export function persistCartId(id: string): void {
   try {
     localStorage.setItem(CART_ID_KEY, id);
   } catch {
@@ -262,7 +284,7 @@ function persistCartId(id: string): void {
   }
 }
 
-function clearPersistedCartId(): void {
+export function clearPersistedCartId(): void {
   try {
     localStorage.removeItem(CART_ID_KEY);
   } catch {
@@ -364,4 +386,36 @@ export async function applyDiscountCode(cartId: string, codes: string[]): Promis
     throw new Error(res.cartDiscountCodesUpdate.userErrors.map((e) => e.message).join("; "));
   }
   return res.cartDiscountCodesUpdate.cart;
+}
+
+/**
+ * Updates customer buyer identity on the cart (e.g. email, customer token)
+ * so that checkout pre-fills customer details and assigns the order to their account.
+ */
+export async function updateCartBuyerIdentity(
+  cartId: string,
+  buyerIdentity: { email?: string; phone?: string; customerAccessToken?: string },
+): Promise<ShopifyCart> {
+  const res = await shopifyFetch<CartBuyerIdentityResponse>(CART_BUYER_IDENTITY_UPDATE, {
+    cartId,
+    buyerIdentity,
+  });
+  if (res.cartBuyerIdentityUpdate.userErrors.length > 0) {
+    throw new Error(res.cartBuyerIdentityUpdate.userErrors.map((e) => e.message).join("; "));
+  }
+  return res.cartBuyerIdentityUpdate.cart;
+}
+
+/**
+ * Retrieves the fresh, authoritative checkout URL directly from Shopify.
+ */
+export async function getFreshCheckoutUrl(cartId: string): Promise<string> {
+  const cart = await getCart(cartId);
+  if (!cart) {
+    throw new Error("Your cart has expired or was not found. Please add items again.");
+  }
+  if (!cart.checkoutUrl) {
+    throw new Error("Unable to retrieve checkout URL from Shopify.");
+  }
+  return cart.checkoutUrl;
 }

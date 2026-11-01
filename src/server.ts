@@ -118,7 +118,20 @@ export default {
       return Response.redirect(destination.toString(), 302);
     }
 
-    // 4. Route Shopify Customer Account API Auth Endpoints (BFF)
+    // 4. Shopify Hosted Checkout Handoff:
+    // If a request arrives directly at /cart/c/* or /checkouts/* on the custom domain,
+    // redirect to Shopify's secure checkout domain so it never renders a 404.
+    if (url.pathname.startsWith("/cart/c/") || url.pathname.startsWith("/checkouts/") || url.pathname.includes("/checkouts/")) {
+      const storeDomain = (
+        process.env.SHOPIFY_STOREFRONT_DOMAIN ||
+        process.env.VITE_SHOPIFY_STORE_DOMAIN ||
+        "thegoldcrownimitation.myshopify.com"
+      ).replace(/^['"]|['"]$/g, "").trim();
+      const shopifyCheckoutUrl = `https://${storeDomain}${url.pathname}${url.search}`;
+      return Response.redirect(shopifyCheckoutUrl, 302);
+    }
+
+    // 5. Route Shopify Customer Account API Auth Endpoints (BFF)
     if (url.pathname.startsWith("/api/auth/")) {
       try {
         switch (url.pathname) {
