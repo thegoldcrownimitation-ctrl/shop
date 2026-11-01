@@ -62,7 +62,51 @@ export default {
       return await handleCustomerResetPassword(request);
     }
 
-    // 2. Direct Fallback: If customer clicks an uncustomized Shopify email linking directly to /account/reset/:id/:token
+    // 2. Shopify Email Click-Tracking Links: /_t/*
+    // Shopify Email wraps all outgoing email links in /_t/c/v3/...
+    // We resolve it against the Shopify store domain and redirect to the un-tracked target path.
+    if (url.pathname.startsWith("/_t/")) {
+      const storeDomain = (
+        process.env.SHOPIFY_STOREFRONT_DOMAIN ||
+        process.env.VITE_SHOPIFY_STORE_DOMAIN ||
+        "thegoldcrownimitation.myshopify.com"
+      ).replace(/^['"]|['"]$/g, "").trim();
+
+      try {
+        const shopifyTarget = `https://${storeDomain}${url.pathname}${url.search}`;
+        const shopifyRes = await fetch(shopifyTarget, {
+          method: "GET",
+          headers: {
+            "User-Agent": request.headers.get("user-agent") || "Mozilla/5.0",
+            "Accept": request.headers.get("accept") || "*/*",
+          },
+          redirect: "manual",
+        });
+
+        const location = shopifyRes.headers.get("location");
+        if (location) {
+          const locUrl = new URL(location, url.origin);
+          // If the tracking link resolves to account reset
+          if (locUrl.pathname.startsWith("/account/reset/")) {
+            const canonicalResetUrl = `https://${storeDomain}${locUrl.pathname}${locUrl.search}`;
+            const destination = new URL(`/reset-password?reset_url=${encodeURIComponent(canonicalResetUrl)}`, url.origin);
+            return Response.redirect(destination.toString(), 302);
+          }
+          // If tracking link resolves to storefront internal path or homepage
+          if (locUrl.origin === url.origin || locUrl.hostname.includes("thegoldcrownjewellery.com")) {
+            const destination = new URL(`${locUrl.pathname}${locUrl.search}`, url.origin);
+            return Response.redirect(destination.toString(), 302);
+          }
+          // Otherwise redirect to the destination Shopify returned
+          return Response.redirect(location, 302);
+        }
+      } catch (err) {
+        console.error("[server] Failed to proxy Shopify email tracking URL:", err);
+      }
+      return Response.redirect(new URL("/", url.origin).toString(), 302);
+    }
+
+    // 3. Direct Fallback: If customer clicks an email linking directly to /account/reset/:id/:token
     if (url.pathname.startsWith("/account/reset/")) {
       const storeDomain = (
         process.env.SHOPIFY_STOREFRONT_DOMAIN ||
@@ -74,7 +118,7 @@ export default {
       return Response.redirect(destination.toString(), 302);
     }
 
-    // 3. Route Shopify Customer Account API Auth Endpoints (BFF)
+    // 4. Route Shopify Customer Account API Auth Endpoints (BFF)
     if (url.pathname.startsWith("/api/auth/")) {
       try {
         switch (url.pathname) {
