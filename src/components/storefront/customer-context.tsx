@@ -13,6 +13,7 @@ import {
   loginCustomer,
   registerCustomer,
   recoverCustomerPassword,
+  resetCustomerPasswordByUrl,
   logoutCustomer,
   fetchCustomerProfile,
   addCustomerAddress,
@@ -56,6 +57,7 @@ interface CustomerContextType {
   }) => Promise<void>;
   logout: () => Promise<void>;
   recoverPassword: (email: string) => Promise<void>;
+  resetPassword: (resetUrl: string, password: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   // Address management
   addAddress: (address: Omit<CustomerAddress, "id" | "isDefault">, isDefault?: boolean) => Promise<void>;
@@ -218,6 +220,10 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     await recoverCustomerPassword(email);
   }, []);
 
+  const resetPassword = useCallback(async (resetUrl: string, password: string) => {
+    await resetCustomerPasswordByUrl(resetUrl, password);
+  }, []);
+
   const addAddress = useCallback(
     async (address: Omit<CustomerAddress, "id" | "isDefault">, isDefault = false) => {
       setError(null);
@@ -298,6 +304,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         recoverPassword,
+    resetPassword,
         refreshProfile,
         addAddress,
         updateAddress,

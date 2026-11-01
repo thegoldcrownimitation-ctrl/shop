@@ -20,6 +20,10 @@ describe("App routing", () => {
     "/policies/returns",
     "/policies/privacy",
     "/policies/terms",
+    "/reset-password",
+    "/login",
+    "/register",
+    "/account",
   ])("matches %s", (path) => {
     const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
     expect(router.matchRoutes(path).at(-1)?.routeId).not.toBe(rootRouteId);

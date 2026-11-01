@@ -10,6 +10,7 @@ import {
   handleCustomerGraphQLProxy,
   handleAuthStatus,
 } from "./server/shopify-auth";
+import { handleCustomerResetPassword } from "./server/shopify-reset-password";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -56,7 +57,24 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const url = new URL(request.url);
 
-    // Route Shopify Customer Account API Auth Endpoints (BFF)
+    // 1. Customer Reset Password Backend Endpoint
+    if (url.pathname === "/api/customer/reset-password") {
+      return await handleCustomerResetPassword(request);
+    }
+
+    // 2. Direct Fallback: If customer clicks an uncustomized Shopify email linking directly to /account/reset/:id/:token
+    if (url.pathname.startsWith("/account/reset/")) {
+      const storeDomain = (
+        process.env.SHOPIFY_STOREFRONT_DOMAIN ||
+        process.env.VITE_SHOPIFY_STORE_DOMAIN ||
+        "thegoldcrownimitation.myshopify.com"
+      ).replace(/^['"]|['"]$/g, "").trim();
+      const shopifyResetUrl = `https://${storeDomain}${url.pathname}${url.search}`;
+      const destination = new URL(`/reset-password?reset_url=${encodeURIComponent(shopifyResetUrl)}`, url.origin);
+      return Response.redirect(destination.toString(), 302);
+    }
+
+    // 3. Route Shopify Customer Account API Auth Endpoints (BFF)
     if (url.pathname.startsWith("/api/auth/")) {
       try {
         switch (url.pathname) {

@@ -618,3 +618,30 @@ export function getShopifyNativeAccountUrl(): string {
   const domain = STORE_DOMAIN_EXPORT || "thegoldcrownimitation.myshopify.com";
   return `https://${domain}/account`;
 }
+
+/**
+ * Reset customer password using Shopify's official customerResetByUrl via secure backend API
+ */
+export async function resetCustomerPasswordByUrl(
+  resetUrl: string,
+  password: string,
+): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch("/api/customer/reset-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ resetUrl, password }),
+  });
+
+  const data = (await res.json().catch(() => ({
+    ok: false,
+    error: "Network response error during password reset.",
+  }))) as { ok?: boolean; message?: string; error?: string; code?: string };
+
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || "Password reset failed. Please request a new link.");
+  }
+
+  return { ok: true, message: data.message || "Password updated successfully." };
+}

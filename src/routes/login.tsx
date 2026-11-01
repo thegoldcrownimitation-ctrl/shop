@@ -24,17 +24,18 @@ export function LoginPage() {
     navigate({ to: "/account" });
   }
 
-  const [mode, setMode] = useState<"login" | "recover">("login");
+  // Read params if returned by OAuth or if navigated with ?mode=recover
+  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const oauthError = searchParams.get("error");
+  const initialMode = searchParams.get("mode") === "recover" ? "recover" : "login";
+
+  const [mode, setMode] = useState<"login" | "recover">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [recoverEmail, setRecoverEmail] = useState("");
   const [recoverSent, setRecoverSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  // Read error param if returned by OAuth
-  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-  const oauthError = searchParams.get("error");
 
   const handleLegacyLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +134,7 @@ export function LoginPage() {
                 <CheckCircle size={32} className="text-primary mx-auto mb-2" />
                 <div style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Password Reset Email Sent</div>
                 <p style={{ fontSize: "0.85rem", color: "hsl(var(--muted-foreground))", margin: 0 }}>
-                  If an account exists for <strong>{recoverEmail}</strong>, you will receive a password reset link in your inbox shortly.
+                  If an account exists for <strong>{recoverEmail}</strong>, you will receive an official Shopify password reset link in your inbox shortly.
                 </p>
               </div>
             ) : (
@@ -285,8 +286,16 @@ export function LoginPage() {
                       setRecoverSent(false);
                       setFormError(null);
                     }}
-                    className="text-link text-xs"
-                    style={{ textDecoration: "underline" }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "hsl(var(--primary))",
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      padding: 0,
+                    }}
                   >
                     Forgot password?
                   </button>
@@ -305,6 +314,30 @@ export function LoginPage() {
               <Button type="submit" disabled={submitting} variant="outline" className="w-full">
                 {submitting ? "Signing in..." : "Sign In with Password"}
               </Button>
+
+              <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("recover");
+                    setRecoverEmail(email);
+                    setRecoverSent(false);
+                    setFormError(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "hsl(var(--primary))",
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    padding: "4px",
+                  }}
+                >
+                  Forgot your password? Click here to reset
+                </button>
+              </div>
             </form>
 
             <div
