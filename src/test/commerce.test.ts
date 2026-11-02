@@ -1,32 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { validateCartItem } from "@/services/commerce";
-import { products } from "@/data/store";
 
-describe("Demo commerce safety", () => {
-  it("accepts real demo variants and valid quantities", () => {
-    const p = products[0];
-    if (!p) throw new Error("Missing demo product");
-    expect(validateCartItem({ productId: p.id, variant: p.variants[0] ?? "", quantity: 2 })).toBe(
-      true,
-    );
+describe("Commerce validation and cart safety", () => {
+  it("accepts valid cart items and positive quantities", () => {
+    expect(validateCartItem({ productId: "prod-1", variant: "Default", quantity: 2 })).toBe(true);
+    expect(validateCartItem({ productId: "gid://shopify/ProductVariant/123", variant: "Default", quantity: 1 })).toBe(true);
   });
 
   it("rejects invalid products, variants and quantities", () => {
-    const p = products[0];
-    if (!p) throw new Error("Missing demo product");
-    for (const quantity of [0, -1, 1.5, 100])
-      expect(validateCartItem({ productId: p.id, variant: p.variants[0] ?? "", quantity })).toBe(
-        false,
-      );
-    expect(validateCartItem({ productId: "missing", variant: "Display sample", quantity: 1 })).toBe(
-      false,
-    );
-    expect(validateCartItem({ productId: p.id, variant: "made up", quantity: 1 })).toBe(false);
+    for (const quantity of [0, -1, 1.5, 100]) {
+      expect(validateCartItem({ productId: "prod-1", variant: "Default", quantity })).toBe(false);
+    }
+    expect(validateCartItem({ productId: "", variant: "Default", quantity: 1 })).toBe(false);
+    expect(validateCartItem({ productId: "prod-1", variant: "", quantity: 1 })).toBe(false);
   });
 
-  it("lists demo products in demo mode", async () => {
+  it("lists products via commerce service", async () => {
     const items = await import("@/services/commerce").then((m) => m.commerce.listProducts());
-    // In test/demo mode Shopify is not configured so demo products are returned
     expect(Array.isArray(items)).toBe(true);
   });
 });

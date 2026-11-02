@@ -46,6 +46,13 @@ const PRODUCT_CORE_FIELDS = /* GraphQL */ `
         height
       }
     }
+    collections(first: 10) {
+      nodes {
+        id
+        handle
+        title
+      }
+    }
     variants(first: 50) {
       nodes {
         id
@@ -143,9 +150,6 @@ const COLLECTIONS_QUERY = /* GraphQL */ `
         image {
           url
           altText
-        }
-        productsCount {
-          count
         }
       }
     }
@@ -262,13 +266,22 @@ interface ProductRecommendationsResponse {
  * Normalises a Shopify product node to the app's Product shape.
  */
 export function mapShopifyProduct(node: ShopifyProductNode): Product {
+  const collNodes = (node as any).collections?.nodes ?? [];
+  const collHandles: string[] = collNodes.map((c: any) => c.handle.toLowerCase());
+
+  // Determine category from Shopify collection or productType
   const rawType = node.productType?.trim() ?? "";
+  const primaryColl =
+    collHandles.find((h: string) => h !== "frontpage" && h !== "products") ??
+    collHandles[0] ??
+    "jewellery";
+
   const category = rawType
     ? rawType
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")
-    : "uncategorised";
+    : primaryColl;
 
   const tags = node.tags.map((t) => t.toLowerCase());
   const festive = tags.some((t) => t.includes("festive") || t.includes("bridal"));
@@ -314,7 +327,9 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     slug: node.handle,
     name: node.title,
     category,
+    collections: collHandles,
     price,
+    compareAtPrice: compareAtPrice > price ? compareAtPrice : null,
     image,
     date: (node.createdAt.split("T")[0]) ?? node.createdAt,
     variants: variantTitles,
@@ -391,15 +406,17 @@ export async function fetchCollectionProducts(handle: string): Promise<{ product
  * Fetches all collections from Shopify.
  */
 export async function fetchCollections(): Promise<ShopifyCollection[]> {
-  const response = await shopifyFetch<CollectionsQueryResponse>(COLLECTIONS_QUERY);
-  return response.collections.nodes.map((c) => ({
-    id: c.id,
-    title: c.title,
-    handle: c.handle,
-    description: c.description,
-    image: c.image?.url ?? null,
-    productsCount: c.productsCount.count,
-  }));
+  const response = await shopifyFetch<any>(COLLECTIONS_QUERY);
+  return (response.collections?.nodes ?? [])
+    .filter((c: any) => c.handle !== "frontpage")
+    .map((c: any) => ({
+      id: c.id,
+      title: c.title,
+      handle: c.handle,
+      description: c.description || "",
+      image: c.image?.url ?? null,
+      productsCount: 0,
+    }));
 }
 
 /**

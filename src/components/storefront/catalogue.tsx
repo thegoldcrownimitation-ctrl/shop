@@ -1,6 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import { SlidersHorizontal, Search, X, Gem, Loader2 } from "lucide-react";
+import {
+  SlidersHorizontal,
+  Search,
+  X,
+  Gem,
+  Loader2,
+  Sparkles,
+  Check,
+  ArrowUpDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { categories, type Product } from "@/data/store";
 import { commerce } from "@/services/commerce";
@@ -11,250 +20,305 @@ interface CatalogueProps {
   searchPage?: boolean;
 }
 
+// Category tabs available for smooth filtering
+const CATEGORY_TABS = [
+  { id: "all", name: "All Pieces", slug: "all" },
+  { id: "necklaces", name: "Necklaces", slug: "necklaces" },
+  { id: "earrings", name: "Earrings", slug: "earrings" },
+  { id: "bracelets", name: "Bracelets", slug: "bracelets" },
+  { id: "bangles", name: "Bangles", slug: "bangles" },
+  { id: "ring", name: "Rings", slug: "ring" },
+  { id: "bridal-festive", name: "Bridal & Festive", slug: "bridal-festive" },
+];
+
 export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("all");
+  const [activeCategory, setActiveCategory] = useState<string>(collection || "all");
   const [maxPrice, setMaxPrice] = useState("");
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [sort, setSort] = useState("newest");
   const [limit, setLimit] = useState(12);
-  const [filters, setFilters] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collectionTitle, setCollectionTitle] = useState<string | null>(null);
 
-  // Fetch products (from collection if specified, otherwise all)
+  // Synchronize category state when prop changes
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    setLimit(12);
-
-    if (collection && collection !== "new-arrivals" && collection !== "bridal-festive") {
-      // Try to load a Shopify collection by handle first
-      commerce
-        .getCollectionProducts(collection)
-        .then((result): Promise<void> | void => {
-          if (result) {
-            setProducts(result.products);
-            if (result.title && result.title !== collection) {
-              setCollectionTitle(result.title);
-            }
-          } else {
-            // Fall back to filtering all products by category
-            return commerce.listProducts().then((all) => {
-              setProducts(all.filter((p) => p.category === collection));
-            });
-          }
-        })
-        .catch((err) => setError(String(err)))
-        .finally(() => setLoading(false));
+    if (collection) {
+      const aliasMap: Record<string, string> = {
+        "necklace-sets": "necklaces",
+        "bangles-bracelets": "bracelets",
+        "rings": "ring",
+      };
+      setActiveCategory(aliasMap[collection] ?? collection);
     } else {
-      commerce
-        .listProducts()
-        .then((data) => setProducts(data))
-        .catch((err) => setError(String(err)))
-        .finally(() => setLoading(false));
+      setActiveCategory("all");
     }
   }, [collection]);
 
-  // Handle search with debounce
+  // Load all products once so category switches are instant and smooth
   useEffect(() => {
-    if (!searchPage || !query.trim()) return;
-    const timer = setTimeout(() => {
-      setLoading(true);
-      commerce
-        .searchProducts(query)
-        .then((results) => {
-          setProducts(results);
-          setLimit(12);
-        })
-        .catch((err) => setError(String(err)))
-        .finally(() => setLoading(false));
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [query, searchPage]);
+    setLoading(true);
+    setError(null);
+    commerce
+      .listProducts()
+      .then((data) => {
+        setAllProducts(data);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load products."))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const current = categories.find((c) => c.slug === collection);
-  const title = searchPage
-    ? "Find Your Sparkle"
-    : collection === "new-arrivals"
-      ? "New Arrivals"
-      : collectionTitle ??
-        (collection === "bridal-festive" ? "Bridal & Festive" : (current?.name ?? "All Jewellery"));
+  // Filter and sort products
+  const filtered = useMemo(() => {
+    return allProducts
+      .filter((p) => {
+        // Category filtering
+        if (activeCategory !== "all") {
+          if (activeCategory === "bridal-festive") {
+            if (!p.festive) return false;
+          } else {
+            const colls = p.collections ?? [];
+            const matchesColl = colls.includes(activeCategory);
+            const matchesCat = p.category === activeCategory;
+            const matchesTitle = p.name.toLowerCase().includes(activeCategory === "ring" ? "ring" : activeCategory);
+            if (!matchesColl && !matchesCat && !matchesTitle) return false;
+          }
+        }
 
-  const filtered = products
-    .filter((p) => {
-      if (collection === "bridal-festive" && !p.festive) return false;
-      if (category !== "all" && p.category !== category) return false;
-      if (maxPrice && p.price > Number(maxPrice)) return false;
-      if (searchPage && query && !p.name.toLowerCase().includes(query.toLowerCase())) return false;
-      return true;
-    })
-    .sort((a, b) =>
-      sort === "price-low"
-        ? a.price - b.price
-        : sort === "price-high"
-          ? b.price - a.price
-          : b.date.localeCompare(a.date),
-    );
+        // In-stock filter
+        if (inStockOnly && p.availableForSale === false) {
+          return false;
+        }
+
+        // Price filter
+        if (maxPrice && p.price > Number(maxPrice)) {
+          return false;
+        }
+
+        // Search filter
+        if (query.trim()) {
+          const q = query.toLowerCase();
+          const matches =
+            p.name.toLowerCase().includes(q) ||
+            p.category.toLowerCase().includes(q) ||
+            (p.collections && p.collections.some((c) => c.includes(q)));
+          if (!matches) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sort === "price-low") return a.price - b.price;
+        if (sort === "price-high") return b.price - a.price;
+        if (sort === "in-stock") {
+          return (b.availableForSale ? 1 : 0) - (a.availableForSale ? 1 : 0);
+        }
+        return b.date.localeCompare(a.date);
+      });
+  }, [allProducts, activeCategory, maxPrice, inStockOnly, query, sort]);
+
+  const currentTab = CATEGORY_TABS.find((t) => t.slug === activeCategory);
+  const displayTitle = searchPage
+    ? "Search Jewellery"
+    : currentTab?.name ?? "All Jewellery";
+
+  const hasActiveFilters =
+    activeCategory !== "all" || !!maxPrice || inStockOnly || !!query.trim();
+
+  const handleResetFilters = () => {
+    setActiveCategory("all");
+    setMaxPrice("");
+    setInStockOnly(false);
+    setQuery("");
+    setSort("newest");
+  };
 
   return (
     <div className="page-width catalogue">
+      {/* Breadcrumb */}
       <div className="breadcrumb">
         <Link to="/">Home</Link>
         <span>/</span>
-        <span>{title}</span>
+        <Link to="/shop">Shop</Link>
+        {activeCategory !== "all" && (
+          <>
+            <span>/</span>
+            <span>{displayTitle}</span>
+          </>
+        )}
       </div>
-      <div className="page-title">
-        <p className="eyebrow text-primary">THE GOLD CROWN COLLECTIONS</p>
-        <h1>{title}</h1>
-        <p>A little tradition, a little expression. Find the piece that feels like you.</p>
+
+      {/* Header */}
+      <div className="page-title text-center max-w-2xl mx-auto mb-8">
+        <p className="eyebrow text-primary tracking-widest uppercase font-semibold text-xs mb-2">
+          THE GOLD CROWN COLLECTION
+        </p>
+        <h1 className="font-serif text-3xl sm:text-5xl font-normal tracking-tight text-foreground mb-3">
+          {displayTitle}
+        </h1>
+        <p className="text-sm sm:text-base text-muted-foreground font-light">
+          Imitation jewellery crafted with timeless devotion. Perfect for weddings, festivities, and everyday royal elegance.
+        </p>
       </div>
+
+      {/* Category Pills Bar */}
+      {!searchPage && (
+        <div className="category-pills-container mb-8 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex items-center gap-2 justify-start sm:justify-center min-w-max px-2">
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = activeCategory === tab.slug;
+              return (
+                <button
+                  key={tab.slug}
+                  onClick={() => {
+                    setActiveCategory(tab.slug);
+                    setLimit(12);
+                  }}
+                  className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm scale-105"
+                      : "bg-secondary/70 hover:bg-secondary text-foreground hover:scale-102 border border-border/50"
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Search Input on Search Page */}
       {searchPage && (
-        <form className="search-form" onSubmit={(e) => e.preventDefault()}>
+        <div className="search-form max-w-md mx-auto mb-8 flex gap-2">
           <input
-            className="field"
-            aria-label="Search products"
-            placeholder="Search necklace sets, earrings, bangles…"
+            className="field flex-1 px-4 py-2 border rounded-md text-sm"
+            aria-label="Search jewellery"
+            placeholder="Search necklaces, earrings, bangles…"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setLimit(12);
-            }}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          <Button type="submit" size="icon" aria-label="Submit search">
-            <Search />
-          </Button>
-        </form>
-      )}
-      {loading && (
-        <div className="empty-state">
-          <Loader2 size={36} className="animate-spin" />
-          <p>Loading products…</p>
-        </div>
-      )}
-      {error && (
-        <div className="empty-state">
-          <Gem size={36} />
-          <h2>Could not load products</h2>
-          <p style={{ color: "var(--destructive)", fontSize: "0.85rem", maxWidth: "40ch" }}>{error}</p>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
-          </Button>
-        </div>
-      )}
-      {!loading && !error && (
-        <div className="catalogue-toolbar">
-          <Button className="mobile-filter-button" variant="ghost" onClick={() => setFilters(true)}>
-            <SlidersHorizontal />
-            Filters
-          </Button>
-          <div className={`filter-controls ${filters ? "filter-open" : ""}`}>
-            <Button
-              className="mobile-filter-button"
-              variant="ghost"
-              aria-label="Close filters"
-              onClick={() => setFilters(false)}
-            >
-              <X />
-              Close
+          {query && (
+            <Button variant="ghost" size="icon" onClick={() => setQuery("")}>
+              <X size={16} />
             </Button>
-            {!searchPage && (
-              <select
-                className="field"
-                aria-label="Filter by category"
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setLimit(12);
-                }}
-              >
-                <option value="all">All categories</option>
-                {categories
-                  .filter((c) => c.slug !== "bridal-festive")
-                  .map((c) => (
-                    <option key={c.slug} value={c.slug}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            )}
+          )}
+        </div>
+      )}
+
+      {/* Toolbar: Filter & Sorting */}
+      <div className="catalogue-toolbar flex flex-wrap items-center justify-between gap-4 py-4 border-y border-border mb-8">
+        <div className="flex items-center gap-3">
+          <span className="text-xs sm:text-sm text-muted-foreground font-medium">
+            Showing <strong className="text-foreground">{filtered.length}</strong> {filtered.length === 1 ? "piece" : "pieces"}
+          </span>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetFilters}
+              className="text-xs text-primary h-7 px-2 hover:bg-primary/10"
+            >
+              Reset filters
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Quick Price Filter */}
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Max:</span>
             <input
-              className="field"
               type="number"
-              min="0"
-              placeholder="Max price (₹)"
-              aria-label="Maximum price"
+              placeholder="₹ Any"
+              className="w-24 px-2 py-1 text-xs border rounded bg-background"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
             />
-            <Button
-              variant="link"
-              onClick={() => {
-                setCategory("all");
-                setMaxPrice("");
-                setQuery("");
-                setSort("newest");
-              }}
-            >
-              Reset
-            </Button>
           </div>
-          <select
-            className="field sort-field"
-            aria-label="Sort products"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            <option value="newest">Newest first</option>
-            <option value="price-low">Price: low to high</option>
-            <option value="price-high">Price: high to low</option>
-          </select>
+
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-2">
+            <ArrowUpDown size={14} className="text-muted-foreground" />
+            <select
+              className="field text-xs sm:text-sm py-1.5 px-3 border rounded bg-background"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              aria-label="Sort products"
+            >
+              <option value="newest">Newest First</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="in-stock">Available Pieces First</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading Shimmer */}
+      {loading && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 py-12">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="animate-pulse flex flex-col gap-3">
+              <div className="w-full aspect-[4/5] bg-secondary/60 rounded-md" />
+              <div className="w-3/4 h-4 bg-secondary/60 rounded" />
+              <div className="w-1/2 h-3 bg-secondary/60 rounded" />
+            </div>
+          ))}
         </div>
       )}
-      {!loading && !error && (
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="empty-state text-center py-16">
+          <Gem size={42} className="mx-auto text-primary mb-3" />
+          <h2 className="text-2xl font-serif mb-2">Could not load catalogue</h2>
+          <p className="text-sm text-destructive max-w-md mx-auto mb-4">{error}</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </div>
+      )}
+
+      {/* Products Grid */}
+      {!loading && !error && filtered.length > 0 && (
         <>
-          <p className="results-count">
-            {filtered.length} {filtered.length === 1 ? "piece" : "pieces"}
-          </p>
-          {filtered.length ? (
-            <>
-              <div className="product-grid">
-                {filtered.slice(0, limit).map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-              {filtered.length > limit && (
-                <div className="load-more">
-                  <Button variant="outline" onClick={() => setLimit((n) => n + 12)}>
-                    Load more
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="empty-state">
-              <Gem size={36} />
-              <h2>
-                {collection === "rings"
-                  ? "The next chapter is coming"
-                  : searchPage && query
-                    ? "No results found"
-                    : "No pieces found"}
-              </h2>
-              <p>
-                {collection === "rings"
-                  ? "Our rings collection is being curated."
-                  : searchPage && query
-                    ? `We couldn't find anything for "${query}". Try a different search.`
-                    : "Try adjusting your filters."}
-              </p>
-              <Button asChild variant="outline">
-                <Link to="/shop">Explore all jewellery</Link>
+          <div className="product-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {filtered.slice(0, limit).map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+
+          {filtered.length > limit && (
+            <div className="text-center mt-12">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setLimit((prev) => prev + 12)}
+                className="px-8"
+              >
+                Load More Pieces
               </Button>
             </div>
           )}
         </>
+      )}
+
+      {/* Empty Category State */}
+      {!loading && !error && filtered.length === 0 && (
+        <div className="empty-state text-center py-16 max-w-md mx-auto border border-dashed rounded-lg p-8 my-8">
+          <Sparkles size={40} className="mx-auto text-primary mb-3" />
+          <h2 className="font-serif text-2xl font-normal mb-2">Curating This Collection</h2>
+          <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+            New handcrafted pieces for <strong>{displayTitle}</strong> are currently arriving. In the meantime, discover our other exquisite pieces.
+          </p>
+          <Button onClick={handleResetFilters} className="px-6">
+            Explore All Pieces
+          </Button>
+        </div>
       )}
     </div>
   );

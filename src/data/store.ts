@@ -1,6 +1,3 @@
-import necklace from "@/assets/necklace.jpg";
-import earrings from "@/assets/earrings.jpg";
-import bangles from "@/assets/bangles.jpg";
 import campaign from "@/assets/campaign.jpg";
 export { campaign };
 
@@ -56,73 +53,54 @@ export interface Product {
   slug: string;
   name: string;
   category: string;
+  collections?: string[];
   price: number;
+  compareAtPrice?: number | null;
   image: string;
   date: string;
-  variants: string[]; // legacy: variant titles for simple display
+  variants: string[]; // variant titles for simple display
   festive: boolean;
-  detail?: ShopifyProductDetail; // rich data only populated from Shopify
+  detail?: ShopifyProductDetail; // rich data populated from Shopify
   availableForSale?: boolean;
 }
 
-// ─── Categories ───────────────────────────────────────────────────────────────
+// ─── Real Store Collections ───────────────────────────────────────────────────
 
 export const categories = [
-  { slug: "necklace-sets", name: "Necklace Sets", image: necklace },
-  { slug: "earrings", name: "Earrings", image: earrings },
-  { slug: "bangles-bracelets", name: "Bangles & Bracelets", image: bangles },
-  { slug: "rings", name: "Rings", image: null },
-  { slug: "bridal-festive", name: "Bridal & Festive", image: campaign },
-];
-
-// ─── Demo products (fallback when Shopify is not connected) ───────────────────
-
-export const products: Product[] = [
   {
-    id: "n1",
-    slug: "gulabi-necklace-set",
-    name: "Gulabi Necklace Set",
-    category: "necklace-sets",
-    price: 2450,
-    image: necklace,
-    date: "2026-10-10",
-    variants: ["Display sample"],
-    festive: true,
+    slug: "necklaces",
+    name: "Necklaces",
+    image: "https://cdn.shopify.com/s/files/1/1024/6239/0644/collections/a-diamond-necklace-and-earrings-on-display-photo.jpg?v=1789724313",
   },
   {
-    id: "e1",
-    slug: "mayura-jhumka-earrings",
-    name: "Mayura Jhumka Earrings",
-    category: "earrings",
-    price: 1250,
-    image: earrings,
-    date: "2026-10-09",
-    variants: ["Display sample"],
-    festive: true,
+    slug: "earrings",
+    name: "Earrings",
+    image: "https://cdn.shopify.com/s/files/1/1024/6239/0644/collections/images.jpg?v=1789724255",
   },
   {
-    id: "b1",
-    slug: "rang-bangle-pair",
-    name: "Rang Bangle Pair",
-    category: "bangles-bracelets",
-    price: 1850,
-    image: bangles,
-    date: "2026-10-08",
-    variants: ["Sample 2.4", "Sample 2.6"],
-    festive: true,
+    slug: "bracelets",
+    name: "Bracelets",
+    image: "https://cdn.shopify.com/s/files/1/1024/6239/0644/collections/SV-203-0003.webp?v=1789724297",
   },
   {
-    id: "n2",
-    slug: "rajwada-necklace-set",
-    name: "Rajwada Necklace Set",
-    category: "necklace-sets",
-    price: 3250,
+    slug: "bangles",
+    name: "Bangles",
+    image: "https://cdn.shopify.com/s/files/1/1024/6239/0644/collections/5e8be5eddeb41d2900856e91eb51ab07.jpg?v=1790066051",
+  },
+  {
+    slug: "ring",
+    name: "Rings",
+    image: "https://cdn.shopify.com/s/files/1/1024/6239/0644/collections/360_F_964560682_1uhlInnvWIsxnVbJo99O7p82rDg2muNY.jpg?v=1789724278",
+  },
+  {
+    slug: "bridal-festive",
+    name: "Bridal & Festive",
     image: campaign,
-    date: "2026-10-07",
-    variants: ["Display sample"],
-    festive: true,
   },
 ];
+
+// No static dummy products! Store starts empty until fetched dynamically from Shopify.
+export const products: Product[] = [];
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 

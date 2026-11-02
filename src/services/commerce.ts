@@ -1,13 +1,12 @@
 /**
  * Commerce adapter
  *
- * When VITE_SHOPIFY_STORE_DOMAIN and VITE_SHOPIFY_STOREFRONT_TOKEN are
- * configured in .env this module fetches real products from the Shopify
- * Storefront API.  Until the credentials are filled in it falls back to
- * the local demo catalogue so the site always renders.
+ * Real Shopify Storefront API integration.
+ * Fetches real products, live collections, predictive search and product details.
+ * Zero static dummy products are returned to customers.
  */
 
-import { products as demoProducts, type Product } from "@/data/store";
+import type { Product } from "@/data/store";
 import {
   fetchAllShopifyProducts,
   fetchProductByHandle,
@@ -17,23 +16,16 @@ import {
 } from "@/services/shopify-products";
 import { isShopifyConfigured } from "@/lib/shopify";
 
-// ─── Status ───────────────────────────────────────────────────────────────────
-
 export const commerceStatus = {
   mode: isShopifyConfigured ? ("shopify" as const) : ("demo" as const),
   checkoutEnabled: isShopifyConfigured,
 } as const;
 
-// ─── Cart ─────────────────────────────────────────────────────────────────────
-
-/** Legacy in-memory cart item used by cart-context for demo mode */
 export interface CartItem {
   productId: string;
   variant: string;
   quantity: number;
 }
-
-// ─── Adapter ──────────────────────────────────────────────────────────────────
 
 export interface CommerceAdapter {
   listProducts(): Promise<Product[]>;
@@ -43,57 +35,90 @@ export interface CommerceAdapter {
   getProductRecommendations(shopifyId: string): Promise<Product[]>;
 }
 
+// Aliases mapping old or plural handles to live Shopify collection handles
+const ALIASES: Record<string, string> = {
+  "necklace-sets": "necklaces",
+  "bangles-bracelets": "bracelets",
+  "rings": "ring",
+};
+
 export const commerce: CommerceAdapter = {
   async listProducts(): Promise<Product[]> {
     if (!isShopifyConfigured) {
-      console.info(
-        "[commerce] Running in demo mode. " +
-          "Set VITE_SHOPIFY_STORE_DOMAIN and VITE_SHOPIFY_STOREFRONT_TOKEN in .env to load live products.",
-      );
-      return demoProducts;
+      return [];
     }
 
     try {
       const shopifyProducts = await fetchAllShopifyProducts();
-      console.info(`[commerce] Loaded ${shopifyProducts.length} products from Shopify.`);
       return shopifyProducts;
     } catch (err) {
-      console.error("[commerce] Failed to fetch from Shopify, falling back to demo products:", err);
-      return demoProducts;
+      console.error("[commerce] Failed to fetch products from Shopify:", err);
+      return [];
     }
   },
 
   async getProduct(slug: string): Promise<Product | null> {
-    if (!isShopifyConfigured) {
-      return demoProducts.find((p) => p.slug === slug) ?? null;
-    }
+    if (!isShopifyConfigured) return null;
     try {
       return await fetchProductByHandle(slug);
     } catch (err) {
       console.error(`[commerce] Failed to fetch product '${slug}':`, err);
-      return demoProducts.find((p) => p.slug === slug) ?? null;
+      return null;
     }
   },
 
   async getCollectionProducts(handle: string): Promise<{ products: Product[]; title: string; description: string } | null> {
+    const realHandle = ALIASES[handle] ?? handle;
+
     if (isShopifyConfigured) {
+      // 1. Try to fetch directly from Shopify collection
       try {
-        const col = await fetchCollectionProducts(handle);
-        if (col && col.products.length > 0) return col;
+        const col = await fetchCollectionProducts(realHandle);
+        if (col && col.products.length > 0) {
+          return col;
+        }
       } catch (err) {
-        console.warn(`[commerce] Falling back to demo products for collection '${handle}':`, err);
+        console.warn(`[commerce] Fetching collection '${realHandle}' failed:`, err);
+      }
+
+      // 2. Fetch all products and filter by collection membership, category, or title
+      try {
+        const all = await fetchAllShopifyProducts();
+        const matched = all.filter((p) => {
+          if (realHandle === "bridal-festive") return p.festive;
+          if (realHandle === "new-arrivals") return true;
+
+          const colls = p.collections ?? [];
+          return (
+            colls.includes(realHandle) ||
+            colls.includes(handle) ||
+            p.category === realHandle ||
+            p.category === handle
+          );
+        });
+
+        const titleMap: Record<string, string> = {
+          necklaces: "Necklaces",
+          earrings: "Earrings",
+          bracelets: "Bracelets",
+          bangles: "Bangles",
+          ring: "Rings",
+          "bridal-festive": "Bridal & Festive",
+          "new-arrivals": "New Arrivals",
+        };
+
+        return {
+          products: matched,
+          title: titleMap[realHandle] ?? realHandle.replaceAll("-", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          description: "",
+        };
+      } catch (err) {
+        console.warn(`[commerce] Collection fallback filtering failed:`, err);
       }
     }
 
-    // Filter demo products by category/festive
-    const filtered = demoProducts.filter(
-      (p) =>
-        p.category === handle ||
-        (handle === "bridal-festive" && p.festive) ||
-        handle === "new-arrivals",
-    );
     return {
-      products: filtered,
+      products: [],
       title: handle,
       description: "",
     };
@@ -103,18 +128,12 @@ export const commerce: CommerceAdapter = {
     if (isShopifyConfigured) {
       try {
         const results = await searchShopifyProducts(query);
-        if (results.length > 0) return results;
+        return results;
       } catch (err) {
-        console.warn("[commerce] Live Shopify search fallback:", err);
+        console.warn("[commerce] Live Shopify search failed:", err);
       }
     }
-
-    const q = query.toLowerCase();
-    return demoProducts.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q),
-    );
+    return [];
   },
 
   async getProductRecommendations(shopifyId: string): Promise<Product[]> {
@@ -123,11 +142,16 @@ export const commerce: CommerceAdapter = {
         const recs = await fetchProductRecommendations(shopifyId);
         if (recs.length > 0) return recs;
       } catch (err) {
-        console.warn("[commerce] Recommendations fallback to demo catalogue:", err);
+        console.warn("[commerce] Recommendations failed:", err);
       }
+
+      try {
+        const all = await fetchAllShopifyProducts();
+        return all.filter((p) => p.shopifyId !== shopifyId).slice(0, 4);
+      } catch {}
     }
 
-    return demoProducts.slice(0, 4);
+    return [];
   },
 };
 
@@ -145,13 +169,5 @@ export function validateCartItem(item: CartItem): boolean {
     return false;
   }
 
-  // If it's a Shopify GID
-  if (item.productId.startsWith("gid://shopify/")) {
-    return true;
-  }
-
-  // Otherwise validate against demo catalogue
-  const product = demoProducts.find((p) => p.id === item.productId);
-  if (!product) return false;
-  return product.variants.includes(item.variant);
+  return true;
 }

@@ -48,7 +48,7 @@ function Heading({
 }
 
 function HomePage() {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>(demoProducts);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(isShopifyConfigured);
 
   useEffect(() => {
@@ -59,7 +59,7 @@ function HomePage() {
       .then((all) => {
         setFeaturedProducts(all.slice(0, 8));
       })
-      .catch(() => setFeaturedProducts(demoProducts))
+      .catch(() => setFeaturedProducts([]))
       .finally(() => setLoading(false));
   }, []);
 

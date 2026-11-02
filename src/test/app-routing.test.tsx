@@ -15,7 +15,7 @@ describe("App routing", () => {
     "/contact",
     "/faq",
     "/collections/necklace-sets",
-    "/products/gulabi-necklace-set",
+    "/products/sterling-silver-gold-vermeil-freshwater-pearl-necklace-n-1642-g",
     "/policies/shipping",
     "/policies/returns",
     "/policies/privacy",

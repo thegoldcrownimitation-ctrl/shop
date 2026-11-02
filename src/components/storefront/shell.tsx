@@ -27,16 +27,12 @@ import logo from "@/assets/logo.png.asset.json";
 const Nav = () => (
   <>
     <Link to="/">Home</Link>
-    <Link to="/collections/$slug" params={{ slug: "new-arrivals" }}>
-      New Arrivals
-    </Link>
     <Link to="/shop">Shop All</Link>
-    {categories.map((c) => (
-      <Link key={c.slug} to="/collections/$slug" params={{ slug: c.slug }}>
-        {c.name}
-        {c.slug === "bridal-festive" ? " Jewellery" : ""}
-      </Link>
-    ))}
+    <Link to="/collections/$slug" params={{ slug: "necklaces" }}>Necklaces</Link>
+    <Link to="/collections/$slug" params={{ slug: "earrings" }}>Earrings</Link>
+    <Link to="/collections/$slug" params={{ slug: "bracelets" }}>Bracelets</Link>
+    <Link to="/collections/$slug" params={{ slug: "bangles" }}>Bangles</Link>
+    <Link to="/collections/$slug" params={{ slug: "ring" }}>Rings</Link>
     <Link to="/about">About Us</Link>
   </>
 );

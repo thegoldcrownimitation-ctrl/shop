@@ -292,7 +292,7 @@ export function AccountPage() {
               ],
               lineItems: [
                 {
-                  title: "Gulabi Choker Necklace Set",
+                  title: "Sterling Silver Gold Vermeil Freshwater Pearl Necklace",
                   quantity: 1,
                   originalTotalPrice: { amount: "2800.00", currencyCode: "INR" },
                   variant: {
@@ -300,9 +300,9 @@ export function AccountPage() {
                     price: { amount: "2800.00", currencyCode: "INR" },
                     image: {
                       url: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80",
-                      altText: "Gulabi Choker Necklace Set",
+                      altText: "Sterling Silver Gold Vermeil Freshwater Pearl Necklace",
                     },
-                    product: { handle: "gulabi-necklace-set" },
+                    product: { handle: "sterling-silver-gold-vermeil-freshwater-pearl-necklace-n-1642-g" },
                   },
                 },
               ],
