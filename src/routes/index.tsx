@@ -186,8 +186,8 @@ function HomePage() {
           </h2>
           <p>Jewellery that belongs at the heart of your celebrations.</p>
           <Button className="hero-button" asChild>
-            <Link to="/collections/$slug" params={{ slug: "bridal-festive" }}>
-              Discover the Festive Edit <ArrowRight />
+            <Link to="/shop">
+              Discover All Pieces <ArrowRight />
             </Link>
           </Button>
         </div>

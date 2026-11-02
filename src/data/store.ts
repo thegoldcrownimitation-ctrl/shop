@@ -92,11 +92,7 @@ export const categories = [
     name: "Rings",
     image: "https://cdn.shopify.com/s/files/1/1024/6239/0644/collections/360_F_964560682_1uhlInnvWIsxnVbJo99O7p82rDg2muNY.jpg?v=1789724278",
   },
-  {
-    slug: "bridal-festive",
-    name: "Bridal & Festive",
-    image: campaign,
-  },
+
 ];
 
 // No static dummy products! Store starts empty until fetched dynamically from Shopify.

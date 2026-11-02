@@ -85,7 +85,6 @@ export const commerce: CommerceAdapter = {
       try {
         const all = await fetchAllShopifyProducts();
         const matched = all.filter((p) => {
-          if (realHandle === "bridal-festive") return p.festive;
           if (realHandle === "new-arrivals") return true;
 
           const colls = p.collections ?? [];
@@ -103,7 +102,6 @@ export const commerce: CommerceAdapter = {
           bracelets: "Bracelets",
           bangles: "Bangles",
           ring: "Rings",
-          "bridal-festive": "Bridal & Festive",
           "new-arrivals": "New Arrivals",
         };
 

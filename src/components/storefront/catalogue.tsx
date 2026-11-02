@@ -28,7 +28,6 @@ const CATEGORY_TABS = [
   { id: "bracelets", name: "Bracelets", slug: "bracelets" },
   { id: "bangles", name: "Bangles", slug: "bangles" },
   { id: "ring", name: "Rings", slug: "ring" },
-  { id: "bridal-festive", name: "Bridal & Festive", slug: "bridal-festive" },
 ];
 
 export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
@@ -77,15 +76,11 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
       .filter((p) => {
         // Category filtering
         if (activeCategory !== "all") {
-          if (activeCategory === "bridal-festive") {
-            if (!p.festive) return false;
-          } else {
-            const colls = p.collections ?? [];
-            const matchesColl = colls.includes(activeCategory);
-            const matchesCat = p.category === activeCategory;
-            const matchesTitle = p.name.toLowerCase().includes(activeCategory === "ring" ? "ring" : activeCategory);
-            if (!matchesColl && !matchesCat && !matchesTitle) return false;
-          }
+          const colls = p.collections ?? [];
+          const matchesColl = colls.includes(activeCategory);
+          const matchesCat = p.category === activeCategory;
+          const matchesTitle = p.name.toLowerCase().includes(activeCategory === "ring" ? "ring" : activeCategory);
+          if (!matchesColl && !matchesCat && !matchesTitle) return false;
         }
 
         // In-stock filter
