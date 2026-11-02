@@ -21,6 +21,7 @@ import {
   Check,
   Phone,
   Building,
+  X,
 } from "lucide-react";
 import { useCustomer } from "./customer-context";
 import { Button } from "@/components/ui/button";
@@ -183,18 +184,18 @@ export function AccountPage() {
     e.preventDefault();
     setAddrSaving(true);
     try {
-      const addressData = {
-        firstName: addrFirst,
-        lastName: addrLast,
-        company: addrCompany,
-        address1: addr1,
-        address2: addr2,
-        city: addrCity,
-        province: addrProvince,
-        country: addrCountry,
-        zip: addrZip,
-        phone: addrPhone,
+      const addressData: any = {
+        firstName: addrFirst.trim(),
+        lastName: addrLast.trim(),
+        address1: addr1.trim(),
+        city: addrCity.trim(),
+        province: addrProvince.trim(),
+        country: addrCountry || "India",
+        zip: addrZip.trim(),
       };
+      if (addrCompany?.trim()) addressData.company = addrCompany.trim();
+      if (addr2?.trim()) addressData.address2 = addr2.trim();
+      if (addrPhone?.trim()) addressData.phone = addrPhone.trim();
 
       if (editingAddressId) {
         await updateAddress(editingAddressId, addressData, addrIsDefault);
@@ -326,7 +327,7 @@ export function AccountPage() {
             <div className="auth-header">
               <p className="eyebrow text-primary">THE GOLD CROWN</p>
               <h1>
-                {authMode === "login" && "Welcome Back"}
+                {authMode === "login" && "Sign In"}
                 {authMode === "register" && "Create an Account"}
                 {authMode === "recover" && "Reset Password"}
               </h1>
@@ -339,47 +340,7 @@ export function AccountPage() {
               </p>
             </div>
 
-            {/* Primary Modern Shopify Customer Account OAuth Button */}
-            <div style={{ marginBottom: "1.75rem" }}>
-              <Button
-                type="button"
-                className="w-full"
-                size="lg"
-                onClick={() =>
-                  authMode === "register"
-                    ? registerWithShopify("/account")
-                    : loginWithShopify("/account")
-                }
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.6rem",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                  padding: "0.85rem 1.5rem",
-                }}
-              >
-                <Lock size={18} />
-                {authMode === "register"
-                  ? "Continue with Shopify Account"
-                  : "Sign In with Shopify Account"}
-              </Button>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.4rem",
-                  marginTop: "0.6rem",
-                  fontSize: "0.78rem",
-                  color: "hsl(var(--muted-foreground))",
-                }}
-              >
-                <ShieldCheck size={14} className="text-primary" />
-                <span>Modern password-free authentication verified by Shopify</span>
-              </div>
-            </div>
+
 
             {/* Tabs for secondary fallback options */}
             <div className="auth-tabs">
@@ -685,22 +646,22 @@ export function AccountPage() {
                   <div className="order-card p-4 border border-border rounded-lg bg-card mt-3">
                     <div className="flex justify-between items-center mb-3">
                       <div>
-                        <span className="font-bold text-base">{displayCustomer.orders[0].name}</span>
+                        <span className="font-bold text-base">{displayCustomer.orders[0]?.name}</span>
                         <span className="text-xs text-muted-foreground ml-3">
-                          {new Date(displayCustomer.orders[0].processedAt).toLocaleDateString("en-IN", {
+                          {new Date(displayCustomer.orders[0]?.processedAt || "").toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}
                         </span>
                       </div>
-                      <span className="badge-status">{displayCustomer.orders[0].fulfillmentStatus}</span>
+                      <span className="badge-status">{displayCustomer.orders[0]?.fulfillmentStatus}</span>
                     </div>
                     <div className="text-sm font-semibold text-primary">
-                      Total: {money(parseFloat(displayCustomer.orders[0].totalPrice.amount))}
+                      Total: {money(parseFloat(displayCustomer.orders[0]?.totalPrice.amount || "0"))}
                     </div>
                     <div className="mt-3 flex gap-3 overflow-x-auto">
-                      {displayCustomer.orders[0].lineItems.map((item: any, idx: number) => (
+                      {displayCustomer.orders[0]?.lineItems.map((item: any, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 text-xs border rounded p-1.5">
                           {item.variant?.image?.url && (
                             <img
@@ -969,19 +930,29 @@ export function AccountPage() {
 
       {/* ── ADDRESS MODAL ── */}
       {showAddressModal && (
-        <div className="drawer-backdrop" onClick={() => setShowAddressModal(false)}>
-          <div
-            className="auth-card"
-            style={{ maxWidth: 540, margin: "auto", position: "relative" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-bold text-xl mb-4">
-              {editingAddressId ? "Edit Address" : "Add New Shipping Address"}
-            </h3>
-            <form onSubmit={handleSaveAddress} className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
+        <div className="modal-backdrop" onClick={() => setShowAddressModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-border">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-primary font-semibold m-0">Shipping Address</p>
+                <h3 className="font-serif text-2xl font-semibold text-foreground m-0 mt-1">
+                  {editingAddressId ? "Edit Address" : "Add New Address"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddressModal(false)}
+                className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAddress} className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="field-group">
-                  <span>First Name</span>
+                  <span className="font-medium text-xs">First Name *</span>
                   <input
                     type="text"
                     required
@@ -991,7 +962,7 @@ export function AccountPage() {
                   />
                 </label>
                 <label className="field-group">
-                  <span>Last Name</span>
+                  <span className="font-medium text-xs">Last Name *</span>
                   <input
                     type="text"
                     required
@@ -1003,29 +974,30 @@ export function AccountPage() {
               </div>
 
               <label className="field-group">
-                <span>Company (Optional)</span>
+                <span className="font-medium text-xs">Company / Landmark (Optional)</span>
                 <input
                   type="text"
                   className="field"
+                  placeholder="e.g. Opposite Satyamev Hospital"
                   value={addrCompany}
                   onChange={(e) => setAddrCompany(e.target.value)}
                 />
               </label>
 
               <label className="field-group">
-                <span>Address Line 1</span>
+                <span className="font-medium text-xs">Address Line 1 *</span>
                 <input
                   type="text"
                   required
                   className="field"
-                  placeholder="Street address or P.O. Box"
+                  placeholder="Flat, House no., Building, Street"
                   value={addr1}
                   onChange={(e) => setAddr1(e.target.value)}
                 />
               </label>
 
               <label className="field-group">
-                <span>Address Line 2 (Optional)</span>
+                <span className="font-medium text-xs">Address Line 2 (Optional)</span>
                 <input
                   type="text"
                   className="field"
@@ -1035,19 +1007,20 @@ export function AccountPage() {
                 />
               </label>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="field-group">
-                  <span>City</span>
+                  <span className="font-medium text-xs">City *</span>
                   <input
                     type="text"
                     required
                     className="field"
+                    placeholder="Ahmedabad"
                     value={addrCity}
                     onChange={(e) => setAddrCity(e.target.value)}
                   />
                 </label>
                 <label className="field-group">
-                  <span>State / Province</span>
+                  <span className="font-medium text-xs">State / Province *</span>
                   <input
                     type="text"
                     required
@@ -1059,19 +1032,20 @@ export function AccountPage() {
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="field-group">
-                  <span>Postal / ZIP Code</span>
+                  <span className="font-medium text-xs">PIN / ZIP Code *</span>
                   <input
                     type="text"
                     required
                     className="field"
+                    placeholder="382424"
                     value={addrZip}
                     onChange={(e) => setAddrZip(e.target.value)}
                   />
                 </label>
                 <label className="field-group">
-                  <span>Phone Number</span>
+                  <span className="font-medium text-xs">Phone Number (Optional)</span>
                   <input
                     type="tel"
                     className="field"
@@ -1088,15 +1062,15 @@ export function AccountPage() {
                   checked={addrIsDefault}
                   onChange={(e) => setAddrIsDefault(e.target.checked)}
                 />
-                <span>Set as default shipping address</span>
+                <span className="text-xs">Set as default shipping address</span>
               </label>
 
-              <div className="flex justify-end gap-3 mt-4 pt-3 border-t">
+              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-border">
                 <Button type="button" variant="outline" onClick={() => setShowAddressModal(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={addrSaving}>
-                  {addrSaving ? "Saving..." : "Save Address"}
+                  {addrSaving ? "Saving..." : (editingAddressId ? "Update Address" : "Save Address")}
                 </Button>
               </div>
             </form>
@@ -1106,10 +1080,10 @@ export function AccountPage() {
 
       {/* ── PROFILE EDIT MODAL ── */}
       {showProfileModal && (
-        <div className="drawer-backdrop" onClick={() => setShowProfileModal(false)}>
+        <div className="modal-backdrop" onClick={() => setShowProfileModal(false)}>
           <div
-            className="auth-card"
-            style={{ maxWidth: 440, margin: "auto", position: "relative" }}
+            className="modal-card"
+            style={{ maxWidth: 440 }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-bold text-xl mb-4">Edit Profile</h3>

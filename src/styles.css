@@ -121,25 +121,20 @@ img {
 .brand-logo {
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--primary);
-  font-family: var(--font-display);
-  font-size: 25px;
-  font-weight: 600;
-  white-space: nowrap;
+  justify-content: center;
+  text-decoration: none;
 }
-.brand-logo img {
-  border-radius: 50%;
-  width: 54px;
-  height: 54px;
+.brand-logo img,
+.brand-logo-img {
+  height: 82px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  transition: transform 0.2s ease;
 }
-.brand-logo small {
-  display: block;
-  font-family: var(--font-sans);
-  font-size: 8px;
-  letter-spacing: 3px;
-  text-align: center;
-  margin-top: 2px;
+.brand-logo:hover img,
+.brand-logo:hover .brand-logo-img {
+  transform: scale(1.02);
 }
 .header-actions {
   display: flex;
@@ -949,17 +944,10 @@ img {
   }
   .brand-logo {
     justify-content: center;
-    gap: 7px;
-    font-size: 17px;
-    min-width: 0;
   }
-  .brand-logo img {
-    width: 37px;
-    height: 37px;
-  }
-  .brand-logo small {
-    font-size: 6px;
-    letter-spacing: 1.4px;
+  .brand-logo img,
+  .brand-logo-img {
+    height: 52px;
   }
   .header-actions {
     gap: 2px;
@@ -2792,3 +2780,75 @@ img {
   }
 }
 
+
+/* ─── Customer Header Dropdown & Modals Box Fix ────────────────────────────── */
+.customer-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  width: 240px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px oklch(0.18 0.02 20 / 0.15);
+  z-index: 100;
+  padding: 8px 0;
+}
+.customer-dropdown-menu a,
+.customer-dropdown-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--foreground);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.customer-dropdown-menu a:hover,
+.customer-dropdown-menu button:hover {
+  background: var(--secondary);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: oklch(0.18 0.02 20 / 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+.modal-card {
+  width: 100%;
+  max-width: 540px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px oklch(0.18 0.02 20 / 0.25);
+  padding: clamp(20px, 4vw, 32px);
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-card .field {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  width: 100%;
+  color: var(--foreground);
+}
+.modal-card .field:focus {
+  outline: none;
+  border-color: var(--gold);
+}

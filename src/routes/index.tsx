@@ -34,15 +34,9 @@ function Heading({
         <p className="eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
       </div>
-      {newArrivals ? (
-        <Link className="text-link" to="/collections/$slug" params={{ slug: "new-arrivals" }}>
-          Explore all <ArrowUpRight size={15} />
-        </Link>
-      ) : (
-        <Link className="text-link" to="/shop">
-          Explore all <ArrowUpRight size={15} />
-        </Link>
-      )}
+      <Link className="text-link" to="/shop">
+        Explore all <ArrowUpRight size={15} />
+      </Link>
     </div>
   );
 }

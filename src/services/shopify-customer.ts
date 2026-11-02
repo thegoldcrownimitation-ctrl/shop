@@ -12,6 +12,7 @@ import { shopifyFetch, isShopifyConfigured, STORE_DOMAIN_EXPORT } from "@/lib/sh
 
 export interface CustomerAddress {
   id: string;
+  company?: string | null;
   address1: string;
   address2?: string | null;
   city: string;

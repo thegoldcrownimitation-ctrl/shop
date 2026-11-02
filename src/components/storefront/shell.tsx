@@ -22,7 +22,7 @@ import { useCustomer } from "./customer-context";
 import { PredictiveSearchModal } from "./predictive-search";
 import { brand, categories } from "@/data/store";
 import { isShopifyConfigured } from "@/lib/shopify";
-import logo from "@/assets/logo.png.asset.json";
+import logo from "@/assets/logo.png";
 
 const Nav = () => (
   <>
@@ -75,11 +75,8 @@ export function Header() {
           >
             <Menu />
           </Button>
-          <Link to="/" className="brand-logo">
-            <img src={logo.url} alt="The Gold Crown logo" width={54} height={54} />
-            <span>
-              THE GOLD CROWN<small>IMITATION JEWELLERY</small>
-            </span>
+          <Link to="/" className="brand-logo" aria-label="The Gold Crown Home">
+            <img src={logo} alt="The Gold Crown — Imitation Jewellery" className="brand-logo-img" />
           </Link>
           <div className="header-actions">
             {/* Predictive live search trigger */}
@@ -124,23 +121,9 @@ export function Header() {
                 </Button>
 
                 {dropdownOpen && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: "100%",
-                      marginTop: "6px",
-                      width: "220px",
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)",
-                      zIndex: 50,
-                      padding: "6px 0",
-                    }}
-                  >
-                    <div style={{ padding: "8px 16px", borderBottom: "1px solid hsl(var(--border))" }}>
-                      <div style={{ fontSize: "12px", color: "hsl(var(--muted-foreground))" }}>
+                  <div className="customer-dropdown-menu">
+                    <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: "11px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                         Signed in as
                       </div>
                       <div
@@ -150,90 +133,34 @@ export function Header() {
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
+                          color: "var(--foreground)",
+                          marginTop: "2px",
                         }}
                       >
                         {customer.email || customer.displayName}
                       </div>
                     </div>
 
-                    <Link
-                      to="/account"
-                      onClick={() => setDropdownOpen(false)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 16px",
-                        fontSize: "13px",
-                        color: "hsl(var(--foreground))",
-                        textDecoration: "none",
-                      }}
-                    >
+                    <Link to="/account" onClick={() => setDropdownOpen(false)}>
                       <User size={15} /> My Account
                     </Link>
 
-                    <Link
-                      to="/account"
-                      onClick={() => {
-                        setDropdownOpen(false);
-                        if (typeof window !== "undefined") {
-                          window.location.href = "/account?tab=orders";
-                        }
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 16px",
-                        fontSize: "13px",
-                        color: "hsl(var(--foreground))",
-                        textDecoration: "none",
-                      }}
-                    >
+                    <a href="/account?tab=orders" onClick={() => setDropdownOpen(false)}>
                       <Package size={15} /> My Orders
-                    </Link>
+                    </a>
 
-                    <Link
-                      to="/account"
-                      onClick={() => {
-                        setDropdownOpen(false);
-                        if (typeof window !== "undefined") {
-                          window.location.href = "/account?tab=addresses";
-                        }
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 16px",
-                        fontSize: "13px",
-                        color: "hsl(var(--foreground))",
-                        textDecoration: "none",
-                      }}
-                    >
+                    <a href="/account?tab=addresses" onClick={() => setDropdownOpen(false)}>
                       <MapPin size={15} /> My Addresses
-                    </Link>
+                    </a>
 
-                    <div style={{ borderTop: "1px solid hsl(var(--border))", marginTop: "4px", paddingTop: "4px" }}>
+                    <div style={{ borderTop: "1px solid var(--border)", marginTop: "4px", paddingTop: "4px" }}>
                       <button
                         type="button"
                         onClick={() => {
                           setDropdownOpen(false);
                           logout();
                         }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          width: "100%",
-                          padding: "10px 16px",
-                          fontSize: "13px",
-                          color: "hsl(var(--destructive))",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          textAlign: "left",
-                        }}
+                        style={{ color: "var(--primary)" }}
                       >
                         <LogOut size={15} /> Logout
                       </button>
@@ -284,7 +211,7 @@ export function Header() {
             }}
           >
             <div className="drawer-heading">
-              <span className="font-display text-2xl">The Gold Crown</span>
+              <img src={logo} alt="The Gold Crown" style={{ height: "46px", width: "auto", objectFit: "contain" }} />
               <Button
                 autoFocus
                 variant="ghost"
@@ -368,8 +295,7 @@ export function Footer() {
     <footer className="site-footer">
       <div className="page-width footer-grid">
         <div>
-          <Crown className="text-gold mb-4" size={30} />
-          <h2>THE GOLD CROWN</h2>
+          <img src={logo} alt="The Gold Crown" style={{ height: "72px", width: "auto", marginBottom: "1rem", objectFit: "contain" }} />
           <p>Where Every Look Deserves a Crown.</p>
           <a href={brand.instagram} target="_blank" rel="noreferrer" className="social-link">
             <Instagram size={18} /> Follow our story <ArrowUpRight size={16} />

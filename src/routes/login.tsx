@@ -1,3 +1,4 @@
+import logo from "@/assets/logo.png";
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Crown, Lock, Mail, AlertCircle, ShieldCheck, CheckCircle, ArrowLeft } from "lucide-react";
@@ -70,29 +71,19 @@ export function LoginPage() {
       <div className="auth-card" style={{ maxWidth: 460, margin: "2rem auto" }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 52,
-              height: 52,
-              borderRadius: "50%",
-              background: "hsl(var(--primary) / 0.1)",
-              color: "hsl(var(--primary))",
-              marginBottom: "1rem",
-            }}
-          >
-            <Crown size={28} />
-          </div>
+          <img
+            src={logo}
+            alt="The Gold Crown"
+            style={{ height: "68px", width: "auto", margin: "0 auto 1rem auto", display: "block", objectFit: "contain" }}
+          />
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
-            {mode === "login" ? "Welcome Back" : "Reset Your Password"}
+            {mode === "login" ? "Sign In" : "Reset Your Password"}
           </h1>
-          <p style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.95rem", margin: 0 }}>
-            {mode === "login"
-              ? "Sign in to access your orders, track deliveries, and manage saved addresses."
-              : "Enter your registered email address and Shopify will send you a password recovery link."}
-          </p>
+          {mode === "recover" && (
+            <p style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.95rem", margin: 0 }}>
+              Enter your registered email address and Shopify will send you a password recovery link.
+            </p>
+          )}
         </div>
 
         {oauthError && (
@@ -192,56 +183,7 @@ export function LoginPage() {
         ) : (
           /* ── MODE: LOGIN ── */
           <div>
-            {/* Primary: Modern Shopify Customer Account API OAuth */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <Button
-                type="button"
-                className="w-full"
-                size="lg"
-                onClick={() => loginWithShopify("/account")}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.6rem",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                  padding: "0.85rem 1.5rem",
-                }}
-              >
-                <Lock size={18} /> Continue with Shopify Account
-              </Button>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.4rem",
-                  marginTop: "0.6rem",
-                  fontSize: "0.78rem",
-                  color: "hsl(var(--muted-foreground))",
-                }}
-              >
-                <ShieldCheck size={14} className="text-primary" />
-                <span>Password-free one-time verification verified by Shopify</span>
-              </div>
-            </div>
 
-            {/* Password Login Form */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "1rem",
-                margin: "1.5rem 0",
-                color: "hsl(var(--muted-foreground))",
-                fontSize: "0.85rem",
-              }}
-            >
-              <div style={{ flex: 1, height: 1, background: "hsl(var(--border))" }} />
-              <span>Or sign in with email</span>
-              <div style={{ flex: 1, height: 1, background: "hsl(var(--border))" }} />
-            </div>
 
             <form onSubmit={handleLegacyLogin} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {formError && (
@@ -311,8 +253,8 @@ export function LoginPage() {
                 />
               </div>
 
-              <Button type="submit" disabled={submitting} variant="outline" className="w-full">
-                {submitting ? "Signing in..." : "Sign In with Password"}
+              <Button type="submit" disabled={submitting} className="w-full" size="lg">
+                {submitting ? "Signing in..." : "Sign In"}
               </Button>
 
               <div style={{ textAlign: "center", marginTop: "0.5rem" }}>

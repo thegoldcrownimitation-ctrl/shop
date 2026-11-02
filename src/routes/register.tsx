@@ -1,3 +1,4 @@
+import logo from "@/assets/logo.png";
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Crown, Sparkles, ArrowRight, ShieldCheck, Check, Lock } from "lucide-react";
@@ -56,21 +57,11 @@ export function RegisterPage() {
     <div className="account-container page-width">
       <div className="auth-card" style={{ maxWidth: 500, margin: "2rem auto" }}>
         <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 52,
-              height: 52,
-              borderRadius: "50%",
-              background: "hsl(var(--primary) / 0.1)",
-              color: "hsl(var(--primary))",
-              marginBottom: "1rem",
-            }}
-          >
-            <Crown size={28} />
-          </div>
+          <img
+            src={logo}
+            alt="The Gold Crown"
+            style={{ height: "68px", width: "auto", margin: "0 auto 1rem auto", display: "block", objectFit: "contain" }}
+          />
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
             Create an Account
           </h1>
@@ -105,58 +96,7 @@ export function RegisterPage() {
           </ul>
         </div>
 
-        {/* Primary: Modern Shopify Customer Account API Registration */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <Button
-            type="button"
-            className="w-full"
-            size="lg"
-            onClick={() => registerWithShopify("/account")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.6rem",
-              fontWeight: 600,
-              fontSize: "1rem",
-              padding: "0.85rem 1.5rem",
-            }}
-          >
-            <Lock size={18} /> Register with Shopify Account
-          </Button>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.4rem",
-              marginTop: "0.6rem",
-              fontSize: "0.78rem",
-              color: "hsl(var(--muted-foreground))",
-            }}
-          >
-            <ShieldCheck size={14} className="text-primary" />
-            <span>Secure account verification powered directly by Shopify</span>
-          </div>
-        </div>
 
-        {/* Fallback form if Customer Account API is not configured yet */}
-        {!isCustomerAccountApiConfigured && (
-          <>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "1rem",
-                margin: "1.5rem 0",
-                color: "hsl(var(--muted-foreground))",
-                fontSize: "0.85rem",
-              }}
-            >
-              <div style={{ flex: 1, height: 1, background: "hsl(var(--border))" }} />
-              <span>Or sign up with email</span>
-              <div style={{ flex: 1, height: 1, background: "hsl(var(--border))" }} />
-            </div>
 
             <form onSubmit={handleLegacyRegister} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {formError && (
@@ -243,12 +183,10 @@ export function RegisterPage() {
                 Keep me updated on festive promotions and new arrivals
               </label>
 
-              <Button type="submit" disabled={submitting} variant="outline" className="w-full">
-                {submitting ? "Creating account..." : "Sign Up with Email"}
+              <Button type="submit" disabled={submitting} className="w-full" size="lg">
+                {submitting ? "Creating account..." : "Create Account"}
               </Button>
             </form>
-          </>
-        )}
 
         <div
           style={{

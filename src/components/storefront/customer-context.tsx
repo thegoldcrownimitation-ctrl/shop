@@ -231,13 +231,32 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
         await createAccountAddress(address, isDefault);
         await refreshProfile();
       } else if (token) {
-        await addCustomerAddress(token, address);
+        const newAddr = await addCustomerAddress(token, address);
+        if (isDefault && newAddr?.id) {
+          try {
+            await setDefaultCustomerAddress(token, newAddr.id);
+          } catch {}
+        }
         await refreshProfile();
+      } else if (customer) {
+        const newId = "addr-" + Date.now();
+        const created: CustomerAddress = { id: newId, ...address, isDefault };
+        setCustomer((prev) => {
+          if (!prev) return prev;
+          const updated = isDefault
+            ? prev.addresses.map((a) => ({ ...a, isDefault: false })).concat(created)
+            : prev.addresses.concat(created);
+          return {
+            ...prev,
+            defaultAddress: isDefault ? created : prev.defaultAddress || created,
+            addresses: updated,
+          };
+        });
       } else {
         throw new Error("You must be logged in to add an address.");
       }
     },
-    [token, refreshProfile],
+    [token, customer, refreshProfile],
   );
 
   const updateAddress = useCallback(

@@ -1,17 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  SlidersHorizontal,
-  Search,
   X,
   Gem,
-  Loader2,
   Sparkles,
-  Check,
   ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { categories, type Product } from "@/data/store";
+import { type Product } from "@/data/store";
 import { commerce } from "@/services/commerce";
 import { ProductCard } from "./product-card";
 
@@ -20,15 +16,14 @@ interface CatalogueProps {
   searchPage?: boolean;
 }
 
-// Category tabs available for smooth filtering
-const CATEGORY_TABS = [
-  { id: "all", name: "All Pieces", slug: "all" },
-  { id: "necklaces", name: "Necklaces", slug: "necklaces" },
-  { id: "earrings", name: "Earrings", slug: "earrings" },
-  { id: "bracelets", name: "Bracelets", slug: "bracelets" },
-  { id: "bangles", name: "Bangles", slug: "bangles" },
-  { id: "ring", name: "Rings", slug: "ring" },
-];
+const TITLE_MAP: Record<string, string> = {
+  all: "Shop All Jewellery",
+  necklaces: "Necklaces",
+  earrings: "Earrings",
+  bracelets: "Bracelets",
+  bangles: "Bangles",
+  ring: "Rings",
+};
 
 export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -38,10 +33,8 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sort, setSort] = useState("newest");
   const [limit, setLimit] = useState(12);
-  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [collectionTitle, setCollectionTitle] = useState<string | null>(null);
 
   // Synchronize category state when prop changes
   useEffect(() => {
@@ -57,7 +50,7 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
     }
   }, [collection]);
 
-  // Load all products once so category switches are instant and smooth
+  // Load all products once so category filtering is instant
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -115,16 +108,17 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
       });
   }, [allProducts, activeCategory, maxPrice, inStockOnly, query, sort]);
 
-  const currentTab = CATEGORY_TABS.find((t) => t.slug === activeCategory);
   const displayTitle = searchPage
     ? "Search Jewellery"
-    : currentTab?.name ?? "All Jewellery";
+    : TITLE_MAP[activeCategory] ?? activeCategory.replaceAll("-", " ").replace(/\\b\\w/g, (c) => c.toUpperCase());
 
   const hasActiveFilters =
-    activeCategory !== "all" || !!maxPrice || inStockOnly || !!query.trim();
+    (activeCategory !== "all" && !collection) || !!maxPrice || inStockOnly || !!query.trim();
 
   const handleResetFilters = () => {
-    setActiveCategory("all");
+    if (!collection) {
+      setActiveCategory("all");
+    }
     setMaxPrice("");
     setInStockOnly(false);
     setQuery("");
@@ -132,63 +126,10 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
   };
 
   return (
-    <div className="page-width catalogue">
-      {/* Breadcrumb */}
-      <div className="breadcrumb">
-        <Link to="/">Home</Link>
-        <span>/</span>
-        <Link to="/shop">Shop</Link>
-        {activeCategory !== "all" && (
-          <>
-            <span>/</span>
-            <span>{displayTitle}</span>
-          </>
-        )}
-      </div>
-
-      {/* Header */}
-      <div className="page-title text-center max-w-2xl mx-auto mb-8">
-        <p className="eyebrow text-primary tracking-widest uppercase font-semibold text-xs mb-2">
-          THE GOLD CROWN COLLECTION
-        </p>
-        <h1 className="font-serif text-3xl sm:text-5xl font-normal tracking-tight text-foreground mb-3">
-          {displayTitle}
-        </h1>
-        <p className="text-sm sm:text-base text-muted-foreground font-light">
-          Imitation jewellery crafted with timeless devotion. Perfect for weddings, festivities, and everyday royal elegance.
-        </p>
-      </div>
-
-      {/* Category Pills Bar */}
-      {!searchPage && (
-        <div className="category-pills-container mb-8 overflow-x-auto pb-2 scrollbar-none">
-          <div className="flex items-center gap-2 justify-start sm:justify-center min-w-max px-2">
-            {CATEGORY_TABS.map((tab) => {
-              const isActive = activeCategory === tab.slug;
-              return (
-                <button
-                  key={tab.slug}
-                  onClick={() => {
-                    setActiveCategory(tab.slug);
-                    setLimit(12);
-                  }}
-                  className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm scale-105"
-                      : "bg-secondary/70 hover:bg-secondary text-foreground hover:scale-102 border border-border/50"
-                  }`}
-                >
-                  {tab.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
+    <div className="page-width catalogue pt-4 pb-16">
       {/* Search Input on Search Page */}
       {searchPage && (
-        <div className="search-form max-w-md mx-auto mb-8 flex gap-2">
+        <div className="search-form max-w-md mx-auto my-6 flex gap-2">
           <input
             className="field flex-1 px-4 py-2 border rounded-md text-sm"
             aria-label="Search jewellery"
@@ -204,18 +145,21 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
         </div>
       )}
 
-      {/* Toolbar: Filter & Sorting */}
-      <div className="catalogue-toolbar flex flex-wrap items-center justify-between gap-4 py-4 border-y border-border mb-8">
-        <div className="flex items-center gap-3">
+      {/* Clean Toolbar: Title on left, Filters on right */}
+      <div className="catalogue-toolbar flex flex-wrap items-center justify-between gap-4 py-4 border-b border-border mb-8">
+        <div className="flex items-baseline gap-3">
+          <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-foreground">
+            {displayTitle}
+          </h1>
           <span className="text-xs sm:text-sm text-muted-foreground font-medium">
-            Showing <strong className="text-foreground">{filtered.length}</strong> {filtered.length === 1 ? "piece" : "pieces"}
+            ({filtered.length} {filtered.length === 1 ? "piece" : "pieces"})
           </span>
           {hasActiveFilters && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleResetFilters}
-              className="text-xs text-primary h-7 px-2 hover:bg-primary/10"
+              className="text-xs text-primary h-7 px-2 hover:bg-primary/10 ml-2"
             >
               Reset filters
             </Button>
@@ -223,17 +167,7 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Quick Price Filter */}
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Max:</span>
-            <input
-              type="number"
-              placeholder="₹ Any"
-              className="w-24 px-2 py-1 text-xs border rounded bg-background"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
-            />
-          </div>
+
 
           {/* Sort Dropdown */}
           <div className="flex items-center gap-2">
@@ -310,8 +244,8 @@ export function Catalogue({ collection, searchPage = false }: CatalogueProps) {
           <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
             New handcrafted pieces for <strong>{displayTitle}</strong> are currently arriving. In the meantime, discover our other exquisite pieces.
           </p>
-          <Button onClick={handleResetFilters} className="px-6">
-            Explore All Pieces
+          <Button asChild className="px-6">
+            <Link to="/shop">Explore All Pieces</Link>
           </Button>
         </div>
       )}
