@@ -26,7 +26,12 @@ import {
 import { useCustomer } from "./customer-context";
 import { Button } from "@/components/ui/button";
 import { money } from "@/data/store";
-import { getShopifyNativeAccountUrl, type CustomerAddress } from "@/services/shopify-customer";
+import {
+  getShopifyNativeAccountUrl,
+  type CustomerAddress,
+  type CustomerOrder,
+  type CustomerOrderLineItem,
+} from "@/services/shopify-customer";
 
 export function AccountPage() {
   const {
@@ -47,7 +52,9 @@ export function AccountPage() {
     setDefaultAddress,
   } = useCustomer();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "addresses" | "profile">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "addresses" | "profile">(
+    "overview",
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -184,7 +191,7 @@ export function AccountPage() {
     e.preventDefault();
     setAddrSaving(true);
     try {
-      const addressData: any = {
+      const addressData: Omit<CustomerAddress, "id" | "isDefault"> = {
         firstName: addrFirst.trim(),
         lastName: addrLast.trim(),
         address1: addr1.trim(),
@@ -303,7 +310,9 @@ export function AccountPage() {
                       url: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80",
                       altText: "Sterling Silver Gold Vermeil Freshwater Pearl Necklace",
                     },
-                    product: { handle: "sterling-silver-gold-vermeil-freshwater-pearl-necklace-n-1642-g" },
+                    product: {
+                      handle: "sterling-silver-gold-vermeil-freshwater-pearl-necklace-n-1642-g",
+                    },
                   },
                 },
               ],
@@ -332,15 +341,14 @@ export function AccountPage() {
                 {authMode === "recover" && "Reset Password"}
               </h1>
               <p className="auth-sub">
-                {authMode === "login" && "Access your orders, saved addresses, and jewellery wishlist."}
+                {authMode === "login" &&
+                  "Access your orders, saved addresses, and jewellery wishlist."}
                 {authMode === "register" &&
                   "Join our circle to enjoy seamless checkout and exclusive festive previews."}
                 {authMode === "recover" &&
                   "Enter your email address and we will send you a password recovery link."}
               </p>
             </div>
-
-
 
             {/* Tabs for secondary fallback options */}
             <div className="auth-tabs">
@@ -521,18 +529,21 @@ export function AccountPage() {
               </div>
             )}
 
-            <div className="auth-footer-options">
-              <div className="mt-4 text-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDemoPreview(true)}
-                  className="preview-dashboard-btn"
-                >
-                  <Sparkles size={14} /> Preview Account Dashboard Demo
-                </Button>
+            {/* Sample-data preview is a development aid only; production never shows fabricated orders. */}
+            {import.meta.env.DEV && (
+              <div className="auth-footer-options">
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDemoPreview(true)}
+                    className="preview-dashboard-btn"
+                  >
+                    <Sparkles size={14} /> Preview Account Dashboard Demo
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -551,7 +562,9 @@ export function AccountPage() {
       <div className="account-header">
         <div>
           <p className="eyebrow text-primary">CUSTOMER PORTAL</p>
-          <h1>Welcome, {displayCustomer.firstName || displayCustomer.displayName || "Valued Customer"}</h1>
+          <h1>
+            Welcome, {displayCustomer.firstName || displayCustomer.displayName || "Valued Customer"}
+          </h1>
           <p className="account-email">{displayCustomer.email}</p>
         </div>
         <div className="account-header-actions">
@@ -646,33 +659,47 @@ export function AccountPage() {
                   <div className="order-card p-4 border border-border rounded-lg bg-card mt-3">
                     <div className="flex justify-between items-center mb-3">
                       <div>
-                        <span className="font-bold text-base">{displayCustomer.orders[0]?.name}</span>
+                        <span className="font-bold text-base">
+                          {displayCustomer.orders[0]?.name}
+                        </span>
                         <span className="text-xs text-muted-foreground ml-3">
-                          {new Date(displayCustomer.orders[0]?.processedAt || "").toLocaleDateString("en-IN", {
+                          {new Date(
+                            displayCustomer.orders[0]?.processedAt || "",
+                          ).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}
                         </span>
                       </div>
-                      <span className="badge-status">{displayCustomer.orders[0]?.fulfillmentStatus}</span>
+                      <span className="badge-status">
+                        {displayCustomer.orders[0]?.fulfillmentStatus}
+                      </span>
                     </div>
                     <div className="text-sm font-semibold text-primary">
-                      Total: {money(parseFloat(displayCustomer.orders[0]?.totalPrice.amount || "0"))}
+                      Total:{" "}
+                      {money(parseFloat(displayCustomer.orders[0]?.totalPrice.amount || "0"))}
                     </div>
                     <div className="mt-3 flex gap-3 overflow-x-auto">
-                      {displayCustomer.orders[0]?.lineItems.map((item: any, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs border rounded p-1.5">
-                          {item.variant?.image?.url && (
-                            <img
-                              src={item.variant.image.url}
-                              alt={item.title}
-                              className="w-10 h-10 object-cover rounded"
-                            />
-                          )}
-                          <span>{item.title} (x{item.quantity})</span>
-                        </div>
-                      ))}
+                      {displayCustomer.orders[0]?.lineItems.map(
+                        (item: CustomerOrderLineItem, idx: number) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 text-xs border rounded p-1.5"
+                          >
+                            {item.variant?.image?.url && (
+                              <img
+                                src={item.variant.image.url}
+                                alt={item.title}
+                                className="w-10 h-10 object-cover rounded"
+                              />
+                            )}
+                            <span>
+                              {item.title} (x{item.quantity})
+                            </span>
+                          </div>
+                        ),
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -705,8 +732,11 @@ export function AccountPage() {
                 </div>
               ) : (
                 <div className="orders-list flex flex-col gap-4">
-                  {displayCustomer.orders.map((order: any) => (
-                    <div key={order.id} className="order-card p-5 border border-border rounded-lg bg-card">
+                  {displayCustomer.orders.map((order: CustomerOrder) => (
+                    <div
+                      key={order.id}
+                      className="order-card p-5 border border-border rounded-lg bg-card"
+                    >
                       <div className="flex justify-between items-start flex-wrap gap-2 pb-3 border-b border-border">
                         <div>
                           <div className="font-bold text-lg">{order.name}</div>
@@ -731,7 +761,7 @@ export function AccountPage() {
 
                       {/* Items */}
                       <div className="py-4 flex flex-col gap-3">
-                        {order.lineItems.map((item: any, i: number) => (
+                        {order.lineItems.map((item: CustomerOrderLineItem, i: number) => (
                           <div key={i} className="flex justify-between items-center text-sm">
                             <div className="flex items-center gap-3">
                               {item.variant?.image?.url ? (
@@ -747,7 +777,9 @@ export function AccountPage() {
                               )}
                               <div>
                                 <div className="font-medium">{item.title}</div>
-                                <div className="text-xs text-muted-foreground">Qty: {item.quantity}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Qty: {item.quantity}
+                                </div>
                               </div>
                             </div>
                             <div className="font-semibold">
@@ -806,12 +838,15 @@ export function AccountPage() {
                     <div
                       key={addr.id}
                       className="address-card p-5 border rounded-lg bg-card relative flex flex-col justify-between"
-                      style={{ borderLeft: addr.isDefault ? "4px solid hsl(var(--primary))" : undefined }}
+                      style={{
+                        borderLeft: addr.isDefault ? "4px solid hsl(var(--primary))" : undefined,
+                      }}
                     >
                       <div>
                         <div className="flex justify-between items-center mb-2">
                           <span className="font-bold text-base">
-                            {[addr.firstName, addr.lastName].filter(Boolean).join(" ") || "Recipient"}
+                            {[addr.firstName, addr.lastName].filter(Boolean).join(" ") ||
+                              "Recipient"}
                           </span>
                           {addr.isDefault && (
                             <span className="text-xs bg-primary text-primary-foreground font-semibold px-2 py-0.5 rounded">
@@ -826,7 +861,12 @@ export function AccountPage() {
                         )}
                         <p className="text-sm text-muted-foreground leading-relaxed">
                           {addr.address1}
-                          {addr.address2 && <><br />{addr.address2}</>}
+                          {addr.address2 && (
+                            <>
+                              <br />
+                              {addr.address2}
+                            </>
+                          )}
                           <br />
                           {addr.city}, {addr.province} {addr.zip}
                           <br />
@@ -889,7 +929,9 @@ export function AccountPage() {
                       Full Name
                     </label>
                     <div className="text-base font-medium">
-                      {[displayCustomer.firstName, displayCustomer.lastName].filter(Boolean).join(" ") || "Not set"}
+                      {[displayCustomer.firstName, displayCustomer.lastName]
+                        .filter(Boolean)
+                        .join(" ") || "Not set"}
                     </div>
                   </div>
                   <div>
@@ -902,7 +944,9 @@ export function AccountPage() {
                     <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block mb-1">
                       Phone Number
                     </label>
-                    <div className="text-base font-medium">{displayCustomer.phone || "Not provided"}</div>
+                    <div className="text-base font-medium">
+                      {displayCustomer.phone || "Not provided"}
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block mb-1">
@@ -934,7 +978,9 @@ export function AccountPage() {
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-border">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-primary font-semibold m-0">Shipping Address</p>
+                <p className="text-[11px] uppercase tracking-wider text-primary font-semibold m-0">
+                  Shipping Address
+                </p>
                 <h3 className="font-serif text-2xl font-semibold text-foreground m-0 mt-1">
                   {editingAddressId ? "Edit Address" : "Add New Address"}
                 </h3>
@@ -1070,7 +1116,7 @@ export function AccountPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={addrSaving}>
-                  {addrSaving ? "Saving..." : (editingAddressId ? "Update Address" : "Save Address")}
+                  {addrSaving ? "Saving..." : editingAddressId ? "Update Address" : "Save Address"}
                 </Button>
               </div>
             </form>

@@ -9,6 +9,30 @@
 import { shopifyFetch } from "@/lib/shopify";
 import type { Product, ShopifyProductDetail, ShopifyCollection } from "@/data/store";
 
+// ─── Short-lived cache + in-flight de-duplication ─────────────────────────────
+// The catalogue, home page, search, recommendations and recently-viewed all ask for the same
+// data. Sharing one request (and reusing it for a minute) avoids hammering the Storefront API.
+// Failed requests are never cached.
+
+const CACHE_TTL_MS = 60_000;
+const cache = new Map<string, { at: number; value: Promise<unknown> }>();
+
+function memo<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value as Promise<T>;
+  const value = load().catch((err) => {
+    cache.delete(key);
+    throw err;
+  });
+  cache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+/** Test/maintenance hook: forget cached Storefront results. */
+export function clearProductCache(): void {
+  cache.clear();
+}
+
 // ─── GraphQL Fragments ─────────────────────────────────────────────────────────
 
 const PRODUCT_CORE_FIELDS = /* GraphQL */ `
@@ -126,7 +150,7 @@ const COLLECTION_QUERY = /* GraphQL */ `
         url
         altText
       }
-      products(first: 250, after: $cursor, sortKey: CREATED_AT, reverse: true) {
+      products(first: 250, after: $cursor, sortKey: CREATED, reverse: true) {
         pageInfo {
           hasNextPage
           endCursor
@@ -196,6 +220,7 @@ export interface ShopifyProductNode {
     minVariantPrice: { amount: string; currencyCode: string };
   };
   images: { nodes: { url: string; altText: string | null; width?: number; height?: number }[] };
+  collections?: { nodes: { id: string; handle: string; title: string }[] };
   variants: {
     nodes: {
       id: string;
@@ -245,7 +270,6 @@ interface CollectionsQueryResponse {
       handle: string;
       description: string;
       image: { url: string; altText: string | null } | null;
-      productsCount: { count: number };
     }[];
   };
 }
@@ -266,8 +290,8 @@ interface ProductRecommendationsResponse {
  * Normalises a Shopify product node to the app's Product shape.
  */
 export function mapShopifyProduct(node: ShopifyProductNode): Product {
-  const collNodes = (node as any).collections?.nodes ?? [];
-  const collHandles: string[] = collNodes.map((c: any) => c.handle.toLowerCase());
+  const collNodes = node.collections?.nodes ?? [];
+  const collHandles: string[] = collNodes.map((c) => c.handle.toLowerCase());
 
   // Determine category from Shopify collection or productType
   const rawType = node.productType?.trim() ?? "";
@@ -303,9 +327,8 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     image: v.image?.url ?? null,
   }));
 
-  const variantTitles = node.variants.nodes.length > 0
-    ? node.variants.nodes.map((v) => v.title)
-    : ["Default"];
+  const variantTitles =
+    node.variants.nodes.length > 0 ? node.variants.nodes.map((v) => v.title) : ["Default"];
 
   // Build full detail object
   const detail: ShopifyProductDetail = {
@@ -331,7 +354,7 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     price,
     compareAtPrice: compareAtPrice > price ? compareAtPrice : null,
     image,
-    date: (node.createdAt.split("T")[0]) ?? node.createdAt,
+    date: node.createdAt.split("T")[0] ?? node.createdAt,
     variants: variantTitles,
     festive,
     detail,
@@ -344,13 +367,19 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
 /**
  * Fetches all products from the Shopify Storefront API, paginating automatically.
  */
-export async function fetchAllShopifyProducts(): Promise<Product[]> {
+export function fetchAllShopifyProducts(): Promise<Product[]> {
+  return memo("all-products", loadAllShopifyProducts);
+}
+
+async function loadAllShopifyProducts(): Promise<Product[]> {
   const allProducts: Product[] = [];
   let cursor: string | null = null;
   let hasNextPage = true;
 
   while (hasNextPage) {
-    const res: ProductsQueryResponse = await shopifyFetch<ProductsQueryResponse>(PRODUCTS_QUERY, { cursor });
+    const res: ProductsQueryResponse = await shopifyFetch<ProductsQueryResponse>(PRODUCTS_QUERY, {
+      cursor,
+    });
     const nodes: ShopifyProductNode[] = res.products.nodes;
     const pi: ProductsQueryResponse["products"]["pageInfo"] = res.products.pageInfo;
     allProducts.push(...nodes.map(mapShopifyProduct));
@@ -364,23 +393,38 @@ export async function fetchAllShopifyProducts(): Promise<Product[]> {
 /**
  * Fetches a single product by its handle (slug).
  */
-export async function fetchProductByHandle(handle: string): Promise<Product | null> {
-  const response = await shopifyFetch<ProductByHandleResponse>(PRODUCT_BY_HANDLE_QUERY, { handle });
-  if (!response.productByHandle) return null;
-  return mapShopifyProduct(response.productByHandle);
+export function fetchProductByHandle(handle: string): Promise<Product | null> {
+  return memo(`product:${handle}`, async () => {
+    const response = await shopifyFetch<ProductByHandleResponse>(PRODUCT_BY_HANDLE_QUERY, {
+      handle,
+    });
+    if (!response.productByHandle) return null;
+    return mapShopifyProduct(response.productByHandle);
+  });
 }
 
 /**
  * Fetches all products in a specific Shopify collection by handle.
  */
-export async function fetchCollectionProducts(handle: string): Promise<{ products: Product[]; title: string; description: string } | null> {
+export function fetchCollectionProducts(
+  handle: string,
+): Promise<{ products: Product[]; title: string; description: string } | null> {
+  return memo(`collection:${handle}`, () => loadCollectionProducts(handle));
+}
+
+async function loadCollectionProducts(
+  handle: string,
+): Promise<{ products: Product[]; title: string; description: string } | null> {
   const allProducts: Product[] = [];
   let cursor: string | null = null;
   let hasNextPage = true;
   let collectionMeta: { title: string; description: string } | null = null;
 
   while (hasNextPage) {
-    const colRes: CollectionQueryResponse = await shopifyFetch<CollectionQueryResponse>(COLLECTION_QUERY, { handle, cursor });
+    const colRes: CollectionQueryResponse = await shopifyFetch<CollectionQueryResponse>(
+      COLLECTION_QUERY,
+      { handle, cursor },
+    );
     if (!colRes.collection) return null;
 
     if (!collectionMeta) {
@@ -405,18 +449,20 @@ export async function fetchCollectionProducts(handle: string): Promise<{ product
 /**
  * Fetches all collections from Shopify.
  */
-export async function fetchCollections(): Promise<ShopifyCollection[]> {
-  const response = await shopifyFetch<any>(COLLECTIONS_QUERY);
-  return (response.collections?.nodes ?? [])
-    .filter((c: any) => c.handle !== "frontpage")
-    .map((c: any) => ({
-      id: c.id,
-      title: c.title,
-      handle: c.handle,
-      description: c.description || "",
-      image: c.image?.url ?? null,
-      productsCount: 0,
-    }));
+export function fetchCollections(): Promise<ShopifyCollection[]> {
+  return memo("collections", async () => {
+    const response = await shopifyFetch<CollectionsQueryResponse>(COLLECTIONS_QUERY);
+    return (response.collections?.nodes ?? [])
+      .filter((c) => c.handle !== "frontpage")
+      .map((c) => ({
+        id: c.id,
+        title: c.title,
+        handle: c.handle,
+        description: c.description || "",
+        image: c.image?.url ?? null,
+        productsCount: 0,
+      }));
+  });
 }
 
 /**
@@ -432,6 +478,9 @@ export async function searchShopifyProducts(query: string): Promise<Product[]> {
  * Fetches product recommendations for a given Shopify product GID.
  */
 export async function fetchProductRecommendations(productId: string): Promise<Product[]> {
-  const response = await shopifyFetch<ProductRecommendationsResponse>(PRODUCT_RECOMMENDATIONS_QUERY, { productId });
+  const response = await shopifyFetch<ProductRecommendationsResponse>(
+    PRODUCT_RECOMMENDATIONS_QUERY,
+    { productId },
+  );
   return response.productRecommendations.map(mapShopifyProduct);
 }

@@ -1,5 +1,5 @@
 import logo from "@/assets/logo.png";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Crown, Sparkles, ArrowRight, ShieldCheck, Check, Lock } from "lucide-react";
 import { useCustomer } from "@/components/storefront/customer-context";
@@ -17,12 +17,15 @@ export const Route = createFileRoute("/register")({
 });
 
 export function RegisterPage() {
-  const { customer, registerWithShopify, register, isCustomerAccountApiConfigured, loading } = useCustomer();
+  const { customer, registerWithShopify, register, isCustomerAccountApiConfigured, loading } =
+    useCustomer();
   const navigate = useNavigate();
 
-  if (!loading && customer) {
-    navigate({ to: "/account" });
-  }
+  useEffect(() => {
+    if (!loading && customer) {
+      navigate({ to: "/account" });
+    }
+  }, [loading, customer, navigate]);
 
   // Fallback registration form
   const [firstName, setFirstName] = useState("");
@@ -60,13 +63,20 @@ export function RegisterPage() {
           <img
             src={logo}
             alt="The Gold Crown"
-            style={{ height: "68px", width: "auto", margin: "0 auto 1rem auto", display: "block", objectFit: "contain" }}
+            style={{
+              height: "68px",
+              width: "auto",
+              margin: "0 auto 1rem auto",
+              display: "block",
+              objectFit: "contain",
+            }}
           />
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
             Create an Account
           </h1>
           <p style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.95rem", margin: 0 }}>
-            Join The Gold Crown community for early access to festive collections and seamless checkout.
+            Join The Gold Crown community for early access to festive collections and seamless
+            checkout.
           </p>
         </div>
 
@@ -83,12 +93,22 @@ export function RegisterPage() {
           <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "hsl(var(--foreground))" }}>
             Member Benefits:
           </div>
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: 0,
+              listStyle: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.35rem",
+            }}
+          >
             <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Check size={14} className="text-primary" /> Live order status & delivery tracking
             </li>
             <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Check size={14} className="text-primary" /> Saved shipping addresses for instant checkout
+              <Check size={14} className="text-primary" /> Saved shipping addresses for instant
+              checkout
             </li>
             <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Check size={14} className="text-primary" /> Sync wishlist across all your devices
@@ -96,97 +116,134 @@ export function RegisterPage() {
           </ul>
         </div>
 
+        <form
+          onSubmit={handleLegacyRegister}
+          style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+        >
+          {formError && (
+            <div
+              style={{
+                padding: "0.75rem",
+                borderRadius: 6,
+                background: "hsl(var(--destructive) / 0.1)",
+                color: "hsl(var(--destructive))",
+                fontSize: "0.85rem",
+              }}
+            >
+              {formError}
+            </div>
+          )}
 
-
-            <form onSubmit={handleLegacyRegister} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {formError && (
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    borderRadius: 6,
-                    background: "hsl(var(--destructive) / 0.1)",
-                    color: "hsl(var(--destructive))",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  {formError}
-                </div>
-              )}
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="Priya"
-                    className="field"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Shah"
-                    className="field"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="field"
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  className="field"
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={acceptsMarketing}
-                  onChange={(e) => setAcceptsMarketing(e.target.checked)}
-                />
-                Keep me updated on festive promotions and new arrivals
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  marginBottom: "0.35rem",
+                }}
+              >
+                First Name
               </label>
+              <input
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Priya"
+                className="field"
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  marginBottom: "0.35rem",
+                }}
+              >
+                Last Name
+              </label>
+              <input
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Shah"
+                className="field"
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
 
-              <Button type="submit" disabled={submitting} className="w-full" size="lg">
-                {submitting ? "Creating account..." : "Create Account"}
-              </Button>
-            </form>
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                marginBottom: "0.35rem",
+              }}
+            >
+              Email Address
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              className="field"
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                marginBottom: "0.35rem",
+              }}
+            >
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              className="field"
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontSize: "0.85rem",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={acceptsMarketing}
+              onChange={(e) => setAcceptsMarketing(e.target.checked)}
+            />
+            Keep me updated on festive promotions and new arrivals
+          </label>
+
+          <Button type="submit" disabled={submitting} className="w-full" size="lg">
+            {submitting ? "Creating account..." : "Create Account"}
+          </Button>
+        </form>
 
         <div
           style={{

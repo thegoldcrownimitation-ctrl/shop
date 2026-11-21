@@ -5,7 +5,7 @@
  * The cart ID is persisted in localStorage for cross-session continuity.
  */
 
-import { shopifyFetch } from "@/lib/shopify";
+import { shopifyFetch, ShopifyApiError, STORE_DOMAIN_EXPORT } from "@/lib/shopify";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,12 @@ export interface ShopifyCart {
     totalTaxAmount: { amount: string; currencyCode: string } | null;
   };
   discountCodes: { code: string; applicable: boolean }[];
+}
+
+export interface CartUserError {
+  code?: string | null;
+  field?: string[] | null;
+  message: string;
 }
 
 // ─── GraphQL Fragments ─────────────────────────────────────────────────────────
@@ -125,6 +131,7 @@ const CART_CREATE = /* GraphQL */ `
         ...CartFields
       }
       userErrors {
+        code
         field
         message
       }
@@ -140,6 +147,7 @@ const CART_LINES_ADD = /* GraphQL */ `
         ...CartFields
       }
       userErrors {
+        code
         field
         message
       }
@@ -155,6 +163,7 @@ const CART_LINES_UPDATE = /* GraphQL */ `
         ...CartFields
       }
       userErrors {
+        code
         field
         message
       }
@@ -170,6 +179,7 @@ const CART_LINES_REMOVE = /* GraphQL */ `
         ...CartFields
       }
       userErrors {
+        code
         field
         message
       }
@@ -185,6 +195,7 @@ const CART_DISCOUNT_CODES_UPDATE = /* GraphQL */ `
         ...CartFields
       }
       userErrors {
+        code
         field
         message
       }
@@ -200,6 +211,7 @@ const CART_BUYER_IDENTITY_UPDATE = /* GraphQL */ `
         ...CartFields
       }
       userErrors {
+        code
         field
         message
       }
@@ -218,46 +230,9 @@ const GET_CART = /* GraphQL */ `
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
-interface CartCreateResponse {
-  cartCreate: {
-    cart: ShopifyCart;
-    userErrors: { field: string; message: string }[];
-  };
-}
-
-interface CartLinesAddResponse {
-  cartLinesAdd: {
-    cart: ShopifyCart;
-    userErrors: { field: string; message: string }[];
-  };
-}
-
-interface CartLinesUpdateResponse {
-  cartLinesUpdate: {
-    cart: ShopifyCart;
-    userErrors: { field: string; message: string }[];
-  };
-}
-
-interface CartLinesRemoveResponse {
-  cartLinesRemove: {
-    cart: ShopifyCart;
-    userErrors: { field: string; message: string }[];
-  };
-}
-
-interface CartDiscountResponse {
-  cartDiscountCodesUpdate: {
-    cart: ShopifyCart;
-    userErrors: { field: string; message: string }[];
-  };
-}
-
-interface CartBuyerIdentityResponse {
-  cartBuyerIdentityUpdate: {
-    cart: ShopifyCart;
-    userErrors: { field: string; message: string }[];
-  };
+interface CartMutationPayload {
+  cart: ShopifyCart | null;
+  userErrors: CartUserError[];
 }
 
 interface GetCartResponse {
@@ -292,18 +267,56 @@ export function clearPersistedCartId(): void {
   }
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Shopify reports a missing / expired cart as a userError on `cartId`
+ * ("The specified cart does not exist.") — callers use this to recreate the cart.
+ */
+export function isCartGoneError(err: unknown): boolean {
+  return err instanceof CartGoneError;
+}
+
+export class CartGoneError extends ShopifyApiError {
+  constructor() {
+    super("Your cart has expired or was not found. Please add your items again.", {
+      code: "CART_GONE",
+    });
+    this.name = "CartGoneError";
+  }
+}
+
+/** Unwraps a cart mutation payload, throwing a readable error on userErrors. */
+function unwrapCartPayload(payload: CartMutationPayload | null | undefined): ShopifyCart {
+  if (!payload) throw new ShopifyApiError("Shopify returned an empty cart response.");
+  const errors = payload.userErrors ?? [];
+  if (
+    errors.some((e) => e.field?.includes("cartId") && /does not exist|not found/i.test(e.message))
+  ) {
+    throw new CartGoneError();
+  }
+  // Variant-level problems (sold out, not found, quantity limits) are reported with a message
+  // Shopify already words for customers; surface it verbatim.
+  if (errors.length > 0) {
+    const first = errors[0];
+    throw new ShopifyApiError(errors.map((e) => e.message).join("; "), {
+      ...(first?.code ? { code: first.code } : {}),
+    });
+  }
+  if (!payload.cart) throw new ShopifyApiError("Shopify did not return a cart.");
+  return payload.cart;
+}
+
 // ─── API functions ────────────────────────────────────────────────────────────
 
 /**
- * Fetches an existing cart by ID. Returns null if cart is expired/not found.
+ * Fetches an existing cart by ID. Returns null only when Shopify confirms the cart
+ * no longer exists. Network / API failures are thrown so callers don't mistake a
+ * transient outage for an expired cart (and wipe the customer's saved bag).
  */
 export async function getCart(cartId: string): Promise<ShopifyCart | null> {
-  try {
-    const res = await shopifyFetch<GetCartResponse>(GET_CART, { cartId });
-    return res.cart;
-  } catch {
-    return null;
-  }
+  const res = await shopifyFetch<GetCartResponse>(GET_CART, { cartId });
+  return res.cart;
 }
 
 /**
@@ -312,24 +325,23 @@ export async function getCart(cartId: string): Promise<ShopifyCart | null> {
 export async function createCart(
   lines?: { merchandiseId: string; quantity: number }[],
 ): Promise<ShopifyCart> {
-  const res = await shopifyFetch<CartCreateResponse>(CART_CREATE, { lines: lines ?? [] });
-  if (res.cartCreate.userErrors.length > 0) {
-    throw new Error(res.cartCreate.userErrors.map((e) => e.message).join("; "));
-  }
-  const cart = res.cartCreate.cart;
+  const res = await shopifyFetch<{ cartCreate: CartMutationPayload }>(CART_CREATE, {
+    lines: lines ?? [],
+  });
+  const cart = unwrapCartPayload(res.cartCreate);
   persistCartId(cart.id);
   return cart;
 }
 
 /**
  * Ensures a valid cart exists — fetches existing or creates a new one.
+ * Only an explicit "cart does not exist" answer clears the saved id.
  */
 export async function ensureCart(): Promise<ShopifyCart> {
   const existingId = getPersistedCartId();
   if (existingId) {
     const cart = await getCart(existingId);
     if (cart) return cart;
-    // Cart expired or not found — clear it
     clearPersistedCartId();
   }
   return createCart();
@@ -342,11 +354,11 @@ export async function addCartLines(
   cartId: string,
   lines: { merchandiseId: string; quantity: number }[],
 ): Promise<ShopifyCart> {
-  const res = await shopifyFetch<CartLinesAddResponse>(CART_LINES_ADD, { cartId, lines });
-  if (res.cartLinesAdd.userErrors.length > 0) {
-    throw new Error(res.cartLinesAdd.userErrors.map((e) => e.message).join("; "));
-  }
-  return res.cartLinesAdd.cart;
+  const res = await shopifyFetch<{ cartLinesAdd: CartMutationPayload }>(CART_LINES_ADD, {
+    cartId,
+    lines,
+  });
+  return unwrapCartPayload(res.cartLinesAdd);
 }
 
 /**
@@ -356,54 +368,50 @@ export async function updateCartLines(
   cartId: string,
   lines: { id: string; quantity: number }[],
 ): Promise<ShopifyCart> {
-  const res = await shopifyFetch<CartLinesUpdateResponse>(CART_LINES_UPDATE, { cartId, lines });
-  if (res.cartLinesUpdate.userErrors.length > 0) {
-    throw new Error(res.cartLinesUpdate.userErrors.map((e) => e.message).join("; "));
-  }
-  return res.cartLinesUpdate.cart;
+  const res = await shopifyFetch<{ cartLinesUpdate: CartMutationPayload }>(CART_LINES_UPDATE, {
+    cartId,
+    lines,
+  });
+  return unwrapCartPayload(res.cartLinesUpdate);
 }
 
 /**
  * Removes line items from a cart.
  */
 export async function removeCartLines(cartId: string, lineIds: string[]): Promise<ShopifyCart> {
-  const res = await shopifyFetch<CartLinesRemoveResponse>(CART_LINES_REMOVE, { cartId, lineIds });
-  if (res.cartLinesRemove.userErrors.length > 0) {
-    throw new Error(res.cartLinesRemove.userErrors.map((e) => e.message).join("; "));
-  }
-  return res.cartLinesRemove.cart;
+  const res = await shopifyFetch<{ cartLinesRemove: CartMutationPayload }>(CART_LINES_REMOVE, {
+    cartId,
+    lineIds,
+  });
+  return unwrapCartPayload(res.cartLinesRemove);
 }
 
 /**
- * Applies or removes discount codes from a cart.
+ * Replaces the discount codes on a cart. Pass the complete desired list
+ * (an empty array clears all codes). Codes Shopify can't apply come back
+ * with `applicable: false` — callers should surface that to the customer.
  */
 export async function applyDiscountCode(cartId: string, codes: string[]): Promise<ShopifyCart> {
-  const res = await shopifyFetch<CartDiscountResponse>(CART_DISCOUNT_CODES_UPDATE, {
-    cartId,
-    discountCodes: codes,
-  });
-  if (res.cartDiscountCodesUpdate.userErrors.length > 0) {
-    throw new Error(res.cartDiscountCodesUpdate.userErrors.map((e) => e.message).join("; "));
-  }
-  return res.cartDiscountCodesUpdate.cart;
+  const res = await shopifyFetch<{ cartDiscountCodesUpdate: CartMutationPayload }>(
+    CART_DISCOUNT_CODES_UPDATE,
+    { cartId, discountCodes: codes },
+  );
+  return unwrapCartPayload(res.cartDiscountCodesUpdate);
 }
 
 /**
- * Updates customer buyer identity on the cart (e.g. email, customer token)
- * so that checkout pre-fills customer details and assigns the order to their account.
+ * Updates the buyer identity on the cart so checkout is pre-filled.
+ * `customerAccessToken` is only valid for legacy-account tokens issued by the Storefront API.
  */
 export async function updateCartBuyerIdentity(
   cartId: string,
   buyerIdentity: { email?: string; phone?: string; customerAccessToken?: string },
 ): Promise<ShopifyCart> {
-  const res = await shopifyFetch<CartBuyerIdentityResponse>(CART_BUYER_IDENTITY_UPDATE, {
-    cartId,
-    buyerIdentity,
-  });
-  if (res.cartBuyerIdentityUpdate.userErrors.length > 0) {
-    throw new Error(res.cartBuyerIdentityUpdate.userErrors.map((e) => e.message).join("; "));
-  }
-  return res.cartBuyerIdentityUpdate.cart;
+  const res = await shopifyFetch<{ cartBuyerIdentityUpdate: CartMutationPayload }>(
+    CART_BUYER_IDENTITY_UPDATE,
+    { cartId, buyerIdentity },
+  );
+  return unwrapCartPayload(res.cartBuyerIdentityUpdate);
 }
 
 /**
@@ -411,11 +419,34 @@ export async function updateCartBuyerIdentity(
  */
 export async function getFreshCheckoutUrl(cartId: string): Promise<string> {
   const cart = await getCart(cartId);
-  if (!cart) {
-    throw new Error("Your cart has expired or was not found. Please add items again.");
-  }
+  if (!cart) throw new CartGoneError();
   if (!cart.checkoutUrl) {
-    throw new Error("Unable to retrieve checkout URL from Shopify.");
+    throw new ShopifyApiError("Unable to retrieve checkout URL from Shopify.");
   }
   return cart.checkoutUrl;
+}
+
+/** Returns a checkout URL that is safe to navigate to (https only, never our own storefront host). */
+export function resolveCheckoutUrl(rawUrl: string, currentHostname?: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid checkout URL returned by Shopify.");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("Invalid checkout URL returned by Shopify.");
+  }
+  // If Shopify's primary domain is this storefront (whose DNS serves the headless site, not
+  // Shopify checkout), send the buyer to the store's myshopify.com domain, which always serves checkout.
+  if (
+    currentHostname &&
+    STORE_DOMAIN_EXPORT &&
+    parsed.hostname === currentHostname &&
+    !currentHostname.endsWith(".myshopify.com") &&
+    !currentHostname.startsWith("checkout.")
+  ) {
+    parsed.hostname = STORE_DOMAIN_EXPORT;
+  }
+  return parsed.toString();
 }

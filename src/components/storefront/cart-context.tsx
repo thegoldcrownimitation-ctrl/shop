@@ -1,10 +1,13 @@
 /**
- * Cart Context — Shopify-powered when credentials are valid and live,
- * with seamless graceful demo-state fallback so the store is always 100% interactive.
+ * Cart Context
  *
- * In Shopify mode, all cart operations go to the Storefront Cart API and
- * the cart ID is persisted in localStorage. Checkout links buyer identity (if logged in)
- * and navigates to the Shopify-hosted checkout URL powered by Razorpay.
+ * Shopify mode (credentials configured): every cart operation goes to the Storefront Cart API;
+ * the cart id is persisted in localStorage. Failures are surfaced to the customer — the cart never
+ * substitutes demo products for a failed request. Checkout hands off to the Shopify-hosted
+ * `checkoutUrl`, where Shopify handles payment (whichever gateways are enabled in Shopify Admin)
+ * and creates the order.
+ *
+ * Demo mode (no credentials): an in-memory sample cart with no stock, payment or order semantics.
  */
 
 import type React from "react";
@@ -14,6 +17,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { isShopifyConfigured } from "@/lib/shopify";
@@ -21,6 +25,10 @@ import { validateCartItem, type CartItem } from "@/services/commerce";
 import { products as demoProducts } from "@/data/store";
 import {
   ensureCart,
+  createCart,
+  clearPersistedCartId,
+  isCartGoneError,
+  resolveCheckoutUrl,
   getCart,
   getPersistedCartId,
   addCartLines,
@@ -163,6 +171,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
 // ─── Shopify Cart Provider ─────────────────────────────────────────────────────
 
+const DISCOUNT_REJECTED_MESSAGE = "Discount code is not valid or does not apply to your cart.";
+
 function ShopifyCartProvider({ children }: { children: ReactNode }) {
   const customerContext = useCustomer();
   const customer = customerContext?.customer ?? null;
@@ -178,11 +188,13 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [cartId, setCartId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Fallback demo items in case Shopify API is temporarily unreachable
-  const [demoItems, setDemoItems] = useState<CartItem[]>([]);
+  // Refs keep the latest cart id / lock state available to async code without stale closures.
+  const cartIdRef = useRef<string | null>(null);
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const checkingOutRef = useRef(false);
+  const discountCodesRef = useRef<{ code: string; applicable: boolean }[]>([]);
 
   const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
@@ -195,81 +207,120 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
     setTotal(state.total);
     setCheckoutUrl(state.checkoutUrl);
     setDiscountCodes(state.discountCodes);
-    setCartId(cart.id);
+    discountCodesRef.current = state.discountCodes;
+    cartIdRef.current = cart.id;
   }, []);
 
-  // Load existing cart on mount
+  const resetCart = useCallback(() => {
+    clearPersistedCartId();
+    cartIdRef.current = null;
+    discountCodesRef.current = [];
+    setLines([]);
+    setCount(0);
+    setSubtotal(0);
+    setTotal(0);
+    setCheckoutUrl(null);
+    setDiscountCodes([]);
+  }, []);
+
+  // Restore the saved cart on mount. Only an explicit "cart does not exist" answer discards it;
+  // a transient network error keeps the saved id so the bag is restored on the next attempt.
   useEffect(() => {
     const existingId = getPersistedCartId();
     if (!existingId) return;
+    let cancelled = false;
     setLoading(true);
     getCart(existingId)
       .then((cart) => {
+        if (cancelled) return;
         if (cart) applyCart(cart);
+        else resetCart();
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [applyCart]);
+      .catch((err) => {
+        console.warn("[cart] Could not restore saved cart:", err);
+        if (!cancelled) cartIdRef.current = existingId;
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyCart, resetCart]);
 
+  /**
+   * Runs a cart mutation exclusively (one at a time, in call order) so rapid clicks can't create
+   * duplicate carts or interleave stale responses. Recovers from an expired cart by starting a
+   * new one when `recreateIfGone` is set (safe for add-to-bag, where the intent is still valid).
+   */
   const withCart = useCallback(
-    async (fn: (id: string) => Promise<ShopifyCart>) => {
-      setLoading(true);
-      setError(null);
-      try {
-        let id = cartId;
-        if (!id) {
-          const freshCart = await ensureCart();
-          id = freshCart.id;
-          setCartId(id);
+    (
+      fn: (cartId: string) => Promise<ShopifyCart>,
+      options: {
+        recreateIfGone?: boolean;
+        reportError?: boolean;
+        openDrawerOnSuccess?: boolean;
+      } = {},
+    ): Promise<void> => {
+      const { recreateIfGone = false, reportError = true, openDrawerOnSuccess = true } = options;
+      const task = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          let id = cartIdRef.current;
+          if (!id) {
+            const cart = await ensureCart();
+            applyCart(cart);
+            id = cart.id;
+          }
+          let updated: ShopifyCart;
+          try {
+            updated = await fn(id);
+          } catch (err) {
+            if (!isCartGoneError(err)) throw err;
+            resetCart();
+            if (!recreateIfGone) throw err;
+            const fresh = await createCart();
+            cartIdRef.current = fresh.id;
+            updated = await fn(fresh.id);
+          }
+          applyCart(updated);
+          if (openDrawerOnSuccess) setIsDrawerOpen(true);
+        } catch (err) {
+          const msg =
+            err instanceof Error ? err.message : "Cart operation failed. Please try again.";
+          if (reportError) setError(msg);
+          throw err instanceof Error ? err : new Error(msg);
+        } finally {
+          setLoading(false);
         }
-        const updatedCart = await fn(id);
-        applyCart(updatedCart);
-        setIsDrawerOpen(true);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Cart operation failed";
-        console.warn("[cart] Shopify cart request fallback:", msg);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
+      };
+      const next = queueRef.current.then(task, task);
+      queueRef.current = next.catch(() => {});
+      return next;
     },
-    [cartId, applyCart],
+    [applyCart, resetCart],
   );
 
   const addItem = useCallback(
     async (merchandiseId: string, quantity = 1) => {
-      try {
-        await withCart(async (id) => addCartLines(id, [{ merchandiseId, quantity }]));
-      } catch {
-        // Graceful fallback to demo items if API rejected or offline
-        const product = demoProducts.find(
-          (p) => p.shopifyId === merchandiseId || p.variants.some((v) => v === merchandiseId),
-        ) || demoProducts[0];
-        if (product) {
-          add({ productId: product.id, variant: product.variants[0] || "Default", quantity });
-        }
-      }
+      const qty = Math.max(1, Math.min(99, Math.floor(quantity)));
+      await withCart((id) => addCartLines(id, [{ merchandiseId, quantity: qty }]), {
+        recreateIfGone: true,
+      });
     },
     [withCart],
   );
 
   const updateItem = useCallback(
     async (lineId: string, quantity: number) => {
-      if (lineId.startsWith("demo-")) {
-        const parts = lineId.split("-");
-        const pId = parts[1] ?? "";
-        const variant = parts.slice(2).join("-") ?? "";
-        if (quantity <= 0) {
-          remove(pId, variant);
-        } else {
-          update(pId, variant, quantity);
-        }
-        return;
-      }
       if (quantity <= 0) {
-        await withCart(async (id) => removeCartLines(id, [lineId]));
+        await withCart((id) => removeCartLines(id, [lineId]), { openDrawerOnSuccess: false });
       } else {
-        await withCart(async (id) => updateCartLines(id, [{ id: lineId, quantity }]));
+        const qty = Math.min(99, Math.floor(quantity));
+        await withCart((id) => updateCartLines(id, [{ id: lineId, quantity: qty }]), {
+          openDrawerOnSuccess: false,
+        });
       }
     },
     [withCart],
@@ -277,54 +328,86 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
 
   const removeItem = useCallback(
     async (lineId: string) => {
-      if (lineId.startsWith("demo-")) {
-        const parts = lineId.split("-");
-        const pId = parts[1] ?? "";
-        const variant = parts.slice(2).join("-") ?? "";
-        remove(pId, variant);
-        return;
-      }
-      await withCart(async (id) => removeCartLines(id, [lineId]));
+      await withCart((id) => removeCartLines(id, [lineId]), { openDrawerOnSuccess: false });
     },
     [withCart],
   );
 
   const applyDiscount = useCallback(
     async (code: string) => {
-      await withCart(async (id) => {
-        const currentCodes = discountCodes.map((d) => d.code);
-        return applyDiscountCodeAPI(id, [...currentCodes, code]);
-      });
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      await withCart(
+        async (id) => {
+          const previous = discountCodesRef.current.map((d) => d.code);
+          const next = previous.some((c) => c.toLowerCase() === trimmed.toLowerCase())
+            ? previous
+            : [...previous, trimmed];
+          const updated = await applyDiscountCodeAPI(id, next);
+          const entry = updated.discountCodes.find(
+            (d) => d.code.toLowerCase() === trimmed.toLowerCase(),
+          );
+          if (!entry?.applicable) {
+            // Don't leave a rejected code on the cart — restore the previous list, then report it.
+            const reverted = await applyDiscountCodeAPI(id, previous);
+            applyCart(reverted);
+            throw new Error(DISCOUNT_REJECTED_MESSAGE);
+          }
+          return updated;
+        },
+        { reportError: false, openDrawerOnSuccess: false },
+      );
     },
-    [withCart, discountCodes],
+    [withCart, applyCart],
   );
 
   const removeDiscount = useCallback(async () => {
-    await withCart(async (id) => applyDiscountCodeAPI(id, []));
+    await withCart((id) => applyDiscountCodeAPI(id, []), {
+      reportError: false,
+      openDrawerOnSuccess: false,
+    });
   }, [withCart]);
 
-  // Authoritative Checkout Initiation
-  const openCheckout = useCallback(async () => {
-    if (isCheckingOut) return;
-    if (!count && !lines.length && !demoItems.length) return;
+  // Re-arm the checkout button if the buyer returns via the browser back button (bfcache).
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        checkingOutRef.current = false;
+        setIsCheckingOut(false);
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
+  // Hand off to Shopify-hosted checkout. Shopify owns payment, order creation and the
+  // gateways configured under Settings → Payments; this app never touches payment data.
+  const openCheckout = useCallback(async () => {
+    if (checkingOutRef.current) return;
+    if (!count && !lines.length) return;
+
+    checkingOutRef.current = true;
     setIsCheckingOut(true);
     setCheckoutError(null);
 
     try {
-      let targetCartId = cartId;
+      // Wait for any in-flight cart mutation so checkout reflects the latest bag.
+      await queueRef.current;
+
+      let targetCartId = cartIdRef.current;
       if (!targetCartId) {
         const fresh = await ensureCart();
+        applyCart(fresh);
         targetCartId = fresh.id;
-        setCartId(targetCartId);
       }
 
-      // If customer is logged in, attach their buyer identity to the Shopify cart
+      // Pre-fill checkout for signed-in customers. Failure here must never block checkout.
       if (customer?.email) {
         try {
+          const legacyToken = token && token !== "oauth_session_active" ? token : undefined;
           const updated = await updateCartBuyerIdentity(targetCartId, {
             email: customer.email,
-            customerAccessToken: token && token !== "oauth_session_active" ? token : undefined,
+            ...(legacyToken ? { customerAccessToken: legacyToken } : {}),
           });
           applyCart(updated);
         } catch (buyerErr) {
@@ -332,106 +415,29 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Fetch fresh, authoritative checkout URL from Shopify
-      let targetUrl = await getFreshCheckoutUrl(targetCartId);
-
-      if (!targetUrl || !targetUrl.startsWith("http")) {
-        throw new Error("Invalid checkout URL returned by Shopify.");
-      }
-
-      // Domain normalization:
-      // If Shopify generated a checkout URL pointing to the custom storefront domain (e.g. thegoldcrownjewellery.com)
-      // but DNS is pointing to Vercel, normalize hostname to the myshopify domain so checkout loads on Shopify's secure server.
-      const storeDomain = (import.meta.env["VITE_SHOPIFY_STORE_DOMAIN"] as string || "thegoldcrownimitation.myshopify.com")
-        .replace(/^['"]|['"]$/g, "")
-        .trim();
-
-      try {
-        const parsed = new URL(targetUrl);
-        if (
-          typeof window !== "undefined" &&
-          parsed.hostname === window.location.hostname &&
-          !window.location.hostname.includes("myshopify.com") &&
-          !window.location.hostname.startsWith("checkout.")
-        ) {
-          parsed.hostname = storeDomain;
-          targetUrl = parsed.toString();
-        }
-      } catch {
-        // ignore parse error
-      }
-
-      // Redirect customer to Shopify Hosted Checkout with Razorpay Payment Gateway
-      if (typeof window !== "undefined") {
-        window.location.href = targetUrl;
-      }
+      // Always use a fresh, authoritative checkout URL from Shopify.
+      const freshUrl = await getFreshCheckoutUrl(targetCartId);
+      const targetUrl = resolveCheckoutUrl(freshUrl, window.location.hostname);
+      window.location.assign(targetUrl);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unable to redirect to checkout. Please try again.";
+      if (isCartGoneError(err)) resetCart();
+      const msg =
+        err instanceof Error ? err.message : "Unable to redirect to checkout. Please try again.";
       setCheckoutError(msg);
+      checkingOutRef.current = false;
       setIsCheckingOut(false);
     }
-  }, [isCheckingOut, count, lines.length, demoItems.length, cartId, customer, token, applyCart]);
+  }, [count, lines.length, customer, token, applyCart, resetCart]);
 
-  // Demo fallback methods
-  const add = (item: CartItem) => {
-    if (!validateCartItem(item)) return;
-    setDemoItems((prev) => {
-      const found = prev.find((p) => p.productId === item.productId && p.variant === item.variant);
-      return found
-        ? prev.map((p) =>
-            p === found ? { ...p, quantity: Math.min(99, p.quantity + item.quantity) } : p,
-          )
-        : [...prev, item];
-    });
-    setIsDrawerOpen(true);
-  };
-
-  const remove = (id: string, variant: string) =>
-    setDemoItems((prev) => prev.filter((p) => p.productId !== id || p.variant !== variant));
-
-  const update = (id: string, variant: string, quantity: number) => {
-    if (!validateCartItem({ productId: id, variant, quantity })) return;
-    setDemoItems((prev) =>
-      prev.map((p) => (p.productId === id && p.variant === variant ? { ...p, quantity } : p)),
-    );
-  };
-
-  // Convert any demo items into lines if Shopify cart is empty
-  const activeLines: CartLineItem[] = lines.length
-    ? lines
-    : demoItems.map((item) => {
-        const p = demoProducts.find((prod) => prod.id === item.productId);
-        return {
-          lineId: `demo-${item.productId}-${item.variant}`,
-          merchandiseId: item.productId,
-          productId: item.productId,
-          productTitle: p?.name ?? "Jewellery Piece",
-          variantTitle: item.variant,
-          quantity: item.quantity,
-          price: p?.price ?? 0,
-          compareAtPrice: null,
-          image: p?.image ?? null,
-          handle: p?.slug ?? "",
-          selectedOptions: [{ name: "Option", value: item.variant }],
-          currencyCode: "INR",
-        };
-      });
-
-  const activeCount = lines.length
-    ? count
-    : demoItems.reduce((acc, curr) => acc + curr.quantity, 0);
-
-  const activeSubtotal = lines.length
-    ? subtotal
-    : activeLines.reduce((acc, line) => acc + line.price * line.quantity, 0);
-
-  const activeTotal = lines.length ? total : activeSubtotal;
+  // Demo-cart helpers exist only so the context shape is identical in both modes.
+  // Live Shopify mode never fabricates cart lines.
+  const noop = useCallback(() => {}, []);
 
   const value: CartState = {
-    lines: activeLines,
-    count: activeCount,
-    subtotal: activeSubtotal,
-    total: activeTotal,
+    lines,
+    count,
+    subtotal,
+    total,
     checkoutUrl,
     discountCodes,
     loading,
@@ -447,10 +453,10 @@ function ShopifyCartProvider({ children }: { children: ReactNode }) {
     applyDiscount,
     removeDiscount,
     openCheckout,
-    add,
-    update,
-    remove,
-    items: demoItems,
+    add: noop,
+    update: noop,
+    remove: noop,
+    items: [],
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

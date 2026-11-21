@@ -18,7 +18,29 @@ export interface AuthSessionResponse {
 export interface AuthStatusResponse {
   configured: boolean;
   storeDomain: string;
-  clientId: string | null;
+}
+
+/** Maps the stable error codes produced by /api/auth/callback to customer-friendly text. */
+export function describeAuthError(code: string): string {
+  switch (code) {
+    case "customer_accounts_not_configured":
+      return "Customer sign-in is not available right now. Please contact the store.";
+    case "shopify_unreachable":
+      return "We couldn't reach Shopify to sign you in. Please try again in a moment.";
+    case "access_denied":
+      return "Sign-in was cancelled.";
+    case "state_expired":
+    case "state_mismatch":
+    case "invalid_state_signature":
+    case "missing_code_or_state":
+      return "Your sign-in session expired. Please try signing in again.";
+    case "token_exchange_failed":
+    case "invalid_id_token":
+    case "login_failed":
+      return "We couldn't complete sign-in. Please try again.";
+    default:
+      return "Sign-in failed. Please try again.";
+  }
 }
 
 export async function fetchAuthStatus(): Promise<AuthStatusResponse> {
@@ -26,10 +48,10 @@ export async function fetchAuthStatus(): Promise<AuthStatusResponse> {
     const res = await fetch("/api/auth/status", {
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return { configured: false, storeDomain: "", clientId: null };
+    if (!res.ok) return { configured: false, storeDomain: "" };
     return (await res.json()) as AuthStatusResponse;
   } catch {
-    return { configured: false, storeDomain: "", clientId: null };
+    return { configured: false, storeDomain: "" };
   }
 }
 

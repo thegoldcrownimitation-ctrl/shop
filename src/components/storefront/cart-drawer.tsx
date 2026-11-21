@@ -58,7 +58,10 @@ export function CartDrawer() {
   }, [isDrawerOpen]);
 
   const currencyCode = lines[0]?.currencyCode || "INR";
-  const freeShippingProgress = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
+  const freeShippingProgress = Math.min(
+    100,
+    Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100),
+  );
   const amountNeeded = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
 
   if (!isDrawerOpen) {
@@ -66,11 +69,7 @@ export function CartDrawer() {
   }
 
   return (
-    <div
-      className="cart-drawer-overlay open"
-      onClick={closeDrawer}
-      aria-hidden="false"
-    >
+    <div className="cart-drawer-overlay open" onClick={closeDrawer} aria-hidden="false">
       <aside
         className={`cart-drawer ${isDrawerOpen ? "open" : ""}`}
         onClick={(e) => e.stopPropagation()}
@@ -116,10 +115,7 @@ export function CartDrawer() {
             )}
           </div>
           <div className="shipping-meter-bar">
-            <div
-              className="shipping-meter-fill"
-              style={{ width: `${freeShippingProgress}%` }}
-            />
+            <div className="shipping-meter-fill" style={{ width: `${freeShippingProgress}%` }} />
           </div>
         </div>
 
@@ -281,12 +277,31 @@ export function CartDrawer() {
               </Button>
             </div>
 
-            <div className="drawer-security-note" style={{ textAlign: "center", marginTop: "0.85rem" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", fontSize: "0.78rem", color: "hsl(var(--muted-foreground))" }}>
+            <div
+              className="drawer-security-note"
+              style={{ textAlign: "center", marginTop: "0.85rem" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.78rem",
+                  color: "hsl(var(--muted-foreground))",
+                }}
+              >
                 <ShieldCheck size={14} className="text-primary" />
-                <span>100% Secure Checkout powered by Shopify & Razorpay</span>
+                <span>Secure checkout powered by Shopify</span>
               </div>
-              <div style={{ fontSize: "0.72rem", color: "hsl(var(--muted-foreground) / 0.8)", marginTop: "0.25rem", letterSpacing: "0.02em" }}>
+              <div
+                style={{
+                  fontSize: "0.72rem",
+                  color: "hsl(var(--muted-foreground) / 0.8)",
+                  marginTop: "0.25rem",
+                  letterSpacing: "0.02em",
+                }}
+              >
                 UPI (GPay, PhonePe, Paytm) • Cards • NetBanking • Wallets
               </div>
             </div>

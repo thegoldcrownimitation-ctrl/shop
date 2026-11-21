@@ -18,12 +18,12 @@ import { pageHead } from "@/utils/page-head";
 import { resetCustomerPasswordByUrl } from "@/services/shopify-customer";
 
 interface ResetPasswordSearchParams {
-  reset_url?: string;
+  reset_url?: string | undefined;
 }
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: (search: Record<string, unknown>): ResetPasswordSearchParams => ({
-    reset_url: typeof search.reset_url === "string" ? search.reset_url : undefined,
+    reset_url: typeof search["reset_url"] === "string" ? search["reset_url"] : undefined,
   }),
   component: ResetPasswordPage,
   head: () =>
@@ -111,7 +111,9 @@ export function ResetPasswordPage() {
     setErrorMessage(null);
 
     if (!resetUrl) {
-      setErrorMessage("The password reset link is missing or has expired. Please request a new link.");
+      setErrorMessage(
+        "The password reset link is missing or has expired. Please request a new link.",
+      );
       return;
     }
 
@@ -145,7 +147,10 @@ export function ResetPasswordPage() {
   if (isSuccess) {
     return (
       <div className="account-container page-width">
-        <div className="auth-card" style={{ maxWidth: 460, margin: "3rem auto", textAlign: "center" }}>
+        <div
+          className="auth-card"
+          style={{ maxWidth: 460, margin: "3rem auto", textAlign: "center" }}
+        >
           <div
             style={{
               display: "inline-flex",
@@ -165,8 +170,16 @@ export function ResetPasswordPage() {
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
             Password Updated
           </h1>
-          <p style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.95rem", lineHeight: 1.5, margin: "0 0 1.75rem" }}>
-            Your Shopify customer password has been successfully updated. You can now sign in with your new credentials.
+          <p
+            style={{
+              color: "hsl(var(--muted-foreground))",
+              fontSize: "0.95rem",
+              lineHeight: 1.5,
+              margin: "0 0 1.75rem",
+            }}
+          >
+            Your Shopify customer password has been successfully updated. You can now sign in with
+            your new credentials.
           </p>
 
           <Button
@@ -179,7 +192,11 @@ export function ResetPasswordPage() {
           </Button>
 
           <div style={{ marginTop: "1.25rem" }}>
-            <Link to="/" className="text-link text-sm" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <Link
+              to="/"
+              className="text-link text-sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
               <ArrowLeft size={14} /> Back to Store
             </Link>
           </div>
@@ -192,7 +209,10 @@ export function ResetPasswordPage() {
   if (urlEvaluated && !resetUrl) {
     return (
       <div className="account-container page-width">
-        <div className="auth-card" style={{ maxWidth: 460, margin: "3rem auto", textAlign: "center" }}>
+        <div
+          className="auth-card"
+          style={{ maxWidth: 460, margin: "3rem auto", textAlign: "center" }}
+        >
           <div
             style={{
               display: "inline-flex",
@@ -212,8 +232,16 @@ export function ResetPasswordPage() {
           <h1 style={{ fontSize: "1.65rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
             Invalid or Expired Link
           </h1>
-          <p style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.95rem", lineHeight: 1.5, margin: "0 0 1.75rem" }}>
-            This password reset link is invalid, expired, or has already been used. For your security, password reset links are one-time use only.
+          <p
+            style={{
+              color: "hsl(var(--muted-foreground))",
+              fontSize: "0.95rem",
+              lineHeight: 1.5,
+              margin: "0 0 1.75rem",
+            }}
+          >
+            This password reset link is invalid, expired, or has already been used. For your
+            security, password reset links are one-time use only.
           </p>
 
           <Button
@@ -226,7 +254,11 @@ export function ResetPasswordPage() {
           </Button>
 
           <div style={{ marginTop: "1.25rem" }}>
-            <Link to="/login" className="text-link text-sm" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <Link
+              to="/login"
+              className="text-link text-sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
               <ArrowLeft size={14} /> Return to Sign In
             </Link>
           </div>
@@ -256,7 +288,16 @@ export function ResetPasswordPage() {
           >
             <Crown size={28} />
           </div>
-          <div style={{ fontSize: "0.78rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "hsl(var(--primary))", marginBottom: "0.25rem" }}>
+          <div
+            style={{
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "hsl(var(--primary))",
+              marginBottom: "0.25rem",
+            }}
+          >
             The Gold Crown
           </div>
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.4rem" }}>
@@ -288,10 +329,20 @@ export function ResetPasswordPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}
+        >
           {/* New Password */}
           <div>
-            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                marginBottom: "0.35rem",
+              }}
+            >
               New Password
             </label>
             <div style={{ position: "relative" }}>
@@ -332,11 +383,28 @@ export function ResetPasswordPage() {
             {/* Strength Bar */}
             {strengthLabel && (
               <div style={{ marginTop: "0.5rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "0.75rem",
+                    marginBottom: "0.25rem",
+                  }}
+                >
                   <span style={{ color: "hsl(var(--muted-foreground))" }}>Password Strength</span>
-                  <span style={{ color: strengthLabel.color, fontWeight: 600 }}>{strengthLabel.text}</span>
+                  <span style={{ color: strengthLabel.color, fontWeight: 600 }}>
+                    {strengthLabel.text}
+                  </span>
                 </div>
-                <div style={{ height: 4, width: "100%", background: "hsl(var(--border))", borderRadius: 2, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: 4,
+                    width: "100%",
+                    background: "hsl(var(--border))",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     style={{
                       height: "100%",
@@ -352,7 +420,14 @@ export function ResetPasswordPage() {
 
           {/* Confirm New Password */}
           <div>
-            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                marginBottom: "0.35rem",
+              }}
+            >
               Confirm New Password
             </label>
             <div style={{ position: "relative" }}>
@@ -432,11 +507,22 @@ export function ResetPasswordPage() {
               <ShieldCheck size={14} className="text-primary" />
               <span>Password requirements:</span>
             </div>
-            <div style={{ paddingLeft: "1.25rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+            <div
+              style={{
+                paddingLeft: "1.25rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.2rem",
+              }}
+            >
               <span style={{ color: passwordChecks.length ? "hsl(142 71% 45%)" : undefined }}>
                 • Minimum 8 characters recommended (Shopify requires at least 5)
               </span>
-              <span style={{ color: passwordChecks.hasNumberOrSpecial ? "hsl(142 71% 45%)" : undefined }}>
+              <span
+                style={{
+                  color: passwordChecks.hasNumberOrSpecial ? "hsl(142 71% 45%)" : undefined,
+                }}
+              >
                 • Include numbers or special characters for stronger security
               </span>
             </div>

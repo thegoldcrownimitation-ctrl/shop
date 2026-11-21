@@ -12,22 +12,26 @@
  */
 
 import crypto from "node:crypto";
+import { API_VERSION } from "../lib/shopify";
 
 // ─── Environment Configuration ───────────────────────────────────────────────
 
 const STORE_DOMAIN = (
-  process.env.SHOPIFY_STOREFRONT_DOMAIN ||
-  process.env.VITE_SHOPIFY_STORE_DOMAIN ||
+  process.env["SHOPIFY_STOREFRONT_DOMAIN"] ||
+  process.env["VITE_SHOPIFY_STORE_DOMAIN"] ||
   "thegoldcrownimitation.myshopify.com"
-).replace(/^['"]|['"]$/g, "").trim();
+)
+  .replace(/^['"]|['"]$/g, "")
+  .trim();
 
 const STOREFRONT_TOKEN = (
-  process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN ||
-  process.env.VITE_SHOPIFY_STOREFRONT_TOKEN ||
+  process.env["SHOPIFY_STOREFRONT_ACCESS_TOKEN"] ||
+  process.env["VITE_SHOPIFY_STOREFRONT_TOKEN"] ||
   ""
-).replace(/^['"]|['"]$/g, "").trim();
+)
+  .replace(/^['"]|['"]$/g, "")
+  .trim();
 
-const API_VERSION = "2025-01";
 const SHOPIFY_ENDPOINT = `https://${STORE_DOMAIN}/api/${API_VERSION}/graphql.json`;
 
 // Allowed domains for customer reset URLs (SSRF protection)
@@ -51,14 +55,17 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 10;
 
 // Periodic cleanup of expired rate limit entries
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, record] of rateLimitMap.entries()) {
-    if (now > record.resetAt) {
-      rateLimitMap.delete(key);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, record] of rateLimitMap.entries()) {
+      if (now > record.resetAt) {
+        rateLimitMap.delete(key);
+      }
     }
-  }
-}, 5 * 60 * 1000).unref();
+  },
+  5 * 60 * 1000,
+).unref();
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -80,14 +87,18 @@ function checkRateLimit(ip: string): boolean {
 function getClientIp(request: Request): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) {
-    return forwardedFor.split(",")[0].trim();
+    return forwardedFor.split(",")[0]?.trim() || "127.0.0.1";
   }
   return request.headers.get("x-real-ip") || "127.0.0.1";
 }
 
 // ─── Reset URL Validation & Normalization ─────────────────────────────────────
 
-export function validateAndNormalizeResetUrl(rawUrl: string): { valid: boolean; normalizedUrl?: string; error?: string } {
+export function validateAndNormalizeResetUrl(rawUrl: string): {
+  valid: boolean;
+  normalizedUrl?: string;
+  error?: string;
+} {
   if (!rawUrl || typeof rawUrl !== "string") {
     return { valid: false, error: "Reset URL is required." };
   }
@@ -107,9 +118,7 @@ export function validateAndNormalizeResetUrl(rawUrl: string): { valid: boolean; 
   const host = parsed.hostname.toLowerCase();
 
   // Check domain against allowed whitelist or .myshopify.com wildcard
-  const isAllowedHost =
-    ALLOWED_RESET_DOMAINS.has(host) ||
-    host.endsWith(".myshopify.com");
+  const isAllowedHost = ALLOWED_RESET_DOMAINS.has(host) || host.endsWith(".myshopify.com");
 
   if (!isAllowedHost) {
     return { valid: false, error: "Invalid reset URL domain." };
@@ -198,7 +207,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         ok: false,
         error: "Too many password reset requests. Please wait a minute before trying again.",
       }),
-      { status: 429, headers: securityHeaders }
+      { status: 429, headers: securityHeaders },
     );
   }
 
@@ -207,20 +216,20 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
   try {
     body = await request.json();
   } catch {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid JSON request payload." }),
-      { status: 400, headers: securityHeaders }
-    );
+    return new Response(JSON.stringify({ ok: false, error: "Invalid JSON request payload." }), {
+      status: 400,
+      headers: securityHeaders,
+    });
   }
 
   const { resetUrl, password } = body;
 
   // 4. Validate Password
   if (!password || typeof password !== "string") {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Password is required." }),
-      { status: 400, headers: securityHeaders }
-    );
+    return new Response(JSON.stringify({ ok: false, error: "Password is required." }), {
+      status: 400,
+      headers: securityHeaders,
+    });
   }
 
   if (password.length < 5) {
@@ -230,7 +239,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         error: "Password must be at least 5 characters long.",
         code: "PASSWORD_TOO_SHORT",
       }),
-      { status: 400, headers: securityHeaders }
+      { status: 400, headers: securityHeaders },
     );
   }
 
@@ -240,7 +249,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         ok: false,
         error: "Password cannot exceed 128 characters.",
       }),
-      { status: 400, headers: securityHeaders }
+      { status: 400, headers: securityHeaders },
     );
   }
 
@@ -251,7 +260,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         ok: false,
         error: "Password reset link is missing or invalid. Please check your reset email.",
       }),
-      { status: 400, headers: securityHeaders }
+      { status: 400, headers: securityHeaders },
     );
   }
 
@@ -262,7 +271,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         ok: false,
         error: urlValidation.error || "Invalid password reset URL.",
       }),
-      { status: 400, headers: securityHeaders }
+      { status: 400, headers: securityHeaders },
     );
   }
 
@@ -274,7 +283,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         ok: false,
         error: "Storefront authentication service is currently unavailable.",
       }),
-      { status: 503, headers: securityHeaders }
+      { status: 503, headers: securityHeaders },
     );
   }
 
@@ -302,7 +311,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
           ok: false,
           error: "Shopify service returned an error. Please try again later.",
         }),
-        { status: 502, headers: securityHeaders }
+        { status: 502, headers: securityHeaders },
       );
     }
 
@@ -314,17 +323,23 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
     // Check top-level GraphQL errors (e.g. "Unidentified customer")
     if (json.errors && json.errors.length > 0) {
       const firstError = json.errors[0];
-      const code = firstError.extensions?.code;
-      const msg = firstError.message?.toLowerCase() || "";
+      const code = firstError?.extensions?.code;
+      const msg = firstError?.message?.toLowerCase() || "";
 
-      if (code === "NOT_FOUND" || msg.includes("unidentified") || msg.includes("invalid") || msg.includes("expired")) {
+      if (
+        code === "NOT_FOUND" ||
+        msg.includes("unidentified") ||
+        msg.includes("invalid") ||
+        msg.includes("expired")
+      ) {
         return new Response(
           JSON.stringify({
             ok: false,
-            error: "This password reset link is invalid, expired, or has already been used. Please request a new password reset email.",
+            error:
+              "This password reset link is invalid, expired, or has already been used. Please request a new password reset email.",
             code: "LINK_EXPIRED_OR_INVALID",
           }),
-          { status: 400, headers: securityHeaders }
+          { status: 400, headers: securityHeaders },
         );
       }
 
@@ -333,7 +348,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
           ok: false,
           error: "Unable to reset password. Please try again or request a new reset link.",
         }),
-        { status: 400, headers: securityHeaders }
+        { status: 400, headers: securityHeaders },
       );
     }
 
@@ -344,24 +359,31 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
           ok: false,
           error: "Unexpected response from Shopify. Please request a new reset link.",
         }),
-        { status: 500, headers: securityHeaders }
+        { status: 500, headers: securityHeaders },
       );
     }
 
     // Check customer user errors
     if (payload.customerUserErrors && payload.customerUserErrors.length > 0) {
-      const userErr = payload.customerUserErrors[0];
+      const userErr = payload.customerUserErrors[0] ?? { code: undefined, message: "" };
       const errCode = userErr.code;
       const errMsg = userErr.message.toLowerCase();
 
-      if (errCode === "EXPIRED" || errCode === "INVALID" || errCode === "TAKEN" || errMsg.includes("expired") || errMsg.includes("invalid")) {
+      if (
+        errCode === "EXPIRED" ||
+        errCode === "INVALID" ||
+        errCode === "TAKEN" ||
+        errMsg.includes("expired") ||
+        errMsg.includes("invalid")
+      ) {
         return new Response(
           JSON.stringify({
             ok: false,
-            error: "This password reset link is invalid or has expired. Please request a new reset link.",
+            error:
+              "This password reset link is invalid or has expired. Please request a new reset link.",
             code: "LINK_EXPIRED_OR_INVALID",
           }),
-          { status: 400, headers: securityHeaders }
+          { status: 400, headers: securityHeaders },
         );
       }
 
@@ -372,7 +394,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
             error: "Password is too short. Please choose a password with at least 5 characters.",
             code: "PASSWORD_TOO_SHORT",
           }),
-          { status: 400, headers: securityHeaders }
+          { status: 400, headers: securityHeaders },
         );
       }
 
@@ -382,7 +404,7 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
           error: userErr.message || "Unable to reset password. Please try again.",
           code: userErr.code,
         }),
-        { status: 400, headers: securityHeaders }
+        { status: 400, headers: securityHeaders },
       );
     }
 
@@ -391,9 +413,10 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
       return new Response(
         JSON.stringify({
           ok: true,
-          message: "Your password has been updated successfully. You can now sign in with your new password.",
+          message:
+            "Your password has been updated successfully. You can now sign in with your new password.",
         }),
-        { status: 200, headers: securityHeaders }
+        { status: 200, headers: securityHeaders },
       );
     }
 
@@ -402,16 +425,19 @@ export async function handleCustomerResetPassword(request: Request): Promise<Res
         ok: false,
         error: "Password reset could not be completed. Please request a new reset link.",
       }),
-      { status: 400, headers: securityHeaders }
+      { status: 400, headers: securityHeaders },
     );
   } catch (err) {
-    console.error("[shopify-reset-password] Unexpected error during password reset execution:", err instanceof Error ? err.message : err);
+    console.error(
+      "[shopify-reset-password] Unexpected error during password reset execution:",
+      err instanceof Error ? err.message : err,
+    );
     return new Response(
       JSON.stringify({
         ok: false,
         error: "A network or server error occurred. Please try again in a moment.",
       }),
-      { status: 500, headers: securityHeaders }
+      { status: 500, headers: securityHeaders },
     );
   }
 }

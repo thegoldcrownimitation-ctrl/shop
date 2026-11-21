@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import {
   type CustomerProfile,
   type CustomerAddress,
@@ -60,8 +53,15 @@ interface CustomerContextType {
   resetPassword: (resetUrl: string, password: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   // Address management
-  addAddress: (address: Omit<CustomerAddress, "id" | "isDefault">, isDefault?: boolean) => Promise<void>;
-  updateAddress: (id: string, address: Omit<CustomerAddress, "id" | "isDefault">, isDefault?: boolean) => Promise<void>;
+  addAddress: (
+    address: Omit<CustomerAddress, "id" | "isDefault">,
+    isDefault?: boolean,
+  ) => Promise<void>;
+  updateAddress: (
+    id: string,
+    address: Omit<CustomerAddress, "id" | "isDefault">,
+    isDefault?: boolean,
+  ) => Promise<void>;
   deleteAddress: (id: string) => Promise<void>;
   setDefaultAddress: (id: string) => Promise<void>;
 }
@@ -118,9 +118,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchAuthStatus().then((status) => {
-      setIsCustomerAccountApiConfigured(status.configured);
-    }).catch(() => {});
+    fetchAuthStatus()
+      .then((status) => {
+        setIsCustomerAccountApiConfigured(status.configured);
+      })
+      .catch(() => {});
     refreshProfile();
   }, [refreshProfile]);
 
@@ -152,25 +154,22 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   );
 
   // Legacy fallback login
-  const login = useCallback(
-    async (email: string, password: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { accessToken } = await loginCustomer(email, password);
-        setToken(accessToken);
-        const profile = await fetchCustomerProfile(accessToken);
-        setCustomer(profile);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to sign in.";
-        setError(msg);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+  const login = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { accessToken } = await loginCustomer(email, password);
+      setToken(accessToken);
+      const profile = await fetchCustomerProfile(accessToken);
+      setCustomer(profile);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to sign in.";
+      setError(msg);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Legacy fallback register
   const register = useCallback(
@@ -235,28 +234,16 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
         if (isDefault && newAddr?.id) {
           try {
             await setDefaultCustomerAddress(token, newAddr.id);
-          } catch {}
+          } catch (err) {
+            console.warn("[customer] Address saved but could not be set as default:", err);
+          }
         }
         await refreshProfile();
-      } else if (customer) {
-        const newId = "addr-" + Date.now();
-        const created: CustomerAddress = { id: newId, ...address, isDefault };
-        setCustomer((prev) => {
-          if (!prev) return prev;
-          const updated = isDefault
-            ? prev.addresses.map((a) => ({ ...a, isDefault: false })).concat(created)
-            : prev.addresses.concat(created);
-          return {
-            ...prev,
-            defaultAddress: isDefault ? created : prev.defaultAddress || created,
-            addresses: updated,
-          };
-        });
       } else {
         throw new Error("You must be logged in to add an address.");
       }
     },
-    [token, customer, refreshProfile],
+    [token, refreshProfile],
   );
 
   const updateAddress = useCallback(
@@ -323,7 +310,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         recoverPassword,
-    resetPassword,
+        resetPassword,
         refreshProfile,
         addAddress,
         updateAddress,

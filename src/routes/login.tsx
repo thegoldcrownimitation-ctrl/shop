@@ -1,10 +1,11 @@
 import logo from "@/assets/logo.png";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Crown, Lock, Mail, AlertCircle, ShieldCheck, CheckCircle, ArrowLeft } from "lucide-react";
 import { useCustomer } from "@/components/storefront/customer-context";
 import { Button } from "@/components/ui/button";
 import { pageHead } from "@/utils/page-head";
+import { describeAuthError } from "@/services/shopify-customer-account";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -17,16 +18,27 @@ export const Route = createFileRoute("/login")({
 });
 
 export function LoginPage() {
-  const { customer, loginWithShopify, login, recoverPassword, isCustomerAccountApiConfigured, loading } = useCustomer();
+  const {
+    customer,
+    loginWithShopify,
+    login,
+    recoverPassword,
+    isCustomerAccountApiConfigured,
+    loading,
+  } = useCustomer();
   const navigate = useNavigate();
 
-  // If already authenticated, redirect to /account
-  if (!loading && customer) {
-    navigate({ to: "/account" });
-  }
+  // If already authenticated, redirect to /account (in an effect — never navigate during render)
+  useEffect(() => {
+    if (!loading && customer) {
+      navigate({ to: "/account" });
+    }
+  }, [loading, customer, navigate]);
 
   // Read params if returned by OAuth or if navigated with ?mode=recover
-  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const searchParams = new URLSearchParams(
+    typeof window !== "undefined" ? window.location.search : "",
+  );
   const oauthError = searchParams.get("error");
   const initialMode = searchParams.get("mode") === "recover" ? "recover" : "login";
 
@@ -74,14 +86,21 @@ export function LoginPage() {
           <img
             src={logo}
             alt="The Gold Crown"
-            style={{ height: "68px", width: "auto", margin: "0 auto 1rem auto", display: "block", objectFit: "contain" }}
+            style={{
+              height: "68px",
+              width: "auto",
+              margin: "0 auto 1rem auto",
+              display: "block",
+              objectFit: "contain",
+            }}
           />
           <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
             {mode === "login" ? "Sign In" : "Reset Your Password"}
           </h1>
           {mode === "recover" && (
             <p style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.95rem", margin: 0 }}>
-              Enter your registered email address and Shopify will send you a password recovery link.
+              Enter your registered email address and Shopify will send you a password recovery
+              link.
             </p>
           )}
         </div>
@@ -102,7 +121,7 @@ export function LoginPage() {
             }}
           >
             <AlertCircle size={18} />
-            <span>Authentication error: {oauthError}</span>
+            <span>{describeAuthError(oauthError)}</span>
           </div>
         )}
 
@@ -123,13 +142,21 @@ export function LoginPage() {
                 }}
               >
                 <CheckCircle size={32} className="text-primary mx-auto mb-2" />
-                <div style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Password Reset Email Sent</div>
-                <p style={{ fontSize: "0.85rem", color: "hsl(var(--muted-foreground))", margin: 0 }}>
-                  If an account exists for <strong>{recoverEmail}</strong>, you will receive an official Shopify password reset link in your inbox shortly.
+                <div style={{ fontWeight: 600, marginBottom: "0.35rem" }}>
+                  Password Reset Email Sent
+                </div>
+                <p
+                  style={{ fontSize: "0.85rem", color: "hsl(var(--muted-foreground))", margin: 0 }}
+                >
+                  If an account exists for <strong>{recoverEmail}</strong>, you will receive an
+                  official Shopify password reset link in your inbox shortly.
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleRecover} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <form
+                onSubmit={handleRecover}
+                style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+              >
                 {formError && (
                   <div
                     style={{
@@ -145,7 +172,14 @@ export function LoginPage() {
                 )}
 
                 <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      marginBottom: "0.35rem",
+                    }}
+                  >
                     Email Address
                   </label>
                   <input
@@ -183,9 +217,10 @@ export function LoginPage() {
         ) : (
           /* ── MODE: LOGIN ── */
           <div>
-
-
-            <form onSubmit={handleLegacyLogin} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <form
+              onSubmit={handleLegacyLogin}
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
               {formError && (
                 <div
                   style={{
@@ -201,7 +236,14 @@ export function LoginPage() {
               )}
 
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    marginBottom: "0.35rem",
+                  }}
+                >
                   Email Address
                 </label>
                 <input
@@ -216,7 +258,14 @@ export function LoginPage() {
               </div>
 
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.35rem",
+                  }}
+                >
                   <label style={{ fontSize: "0.85rem", fontWeight: 600, margin: 0 }}>
                     Password
                   </label>
@@ -295,7 +344,11 @@ export function LoginPage() {
               New to The Gold Crown?{" "}
               <Link
                 to="/register"
-                style={{ color: "hsl(var(--primary))", fontWeight: 600, textDecoration: "underline" }}
+                style={{
+                  color: "hsl(var(--primary))",
+                  fontWeight: 600,
+                  textDecoration: "underline",
+                }}
               >
                 Create an Account
               </Link>

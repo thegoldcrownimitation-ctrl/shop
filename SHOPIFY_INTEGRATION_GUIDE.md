@@ -1,7 +1,7 @@
 # Shopify Integration & Testing Guide
 **The Gold Crown — Headless Storefront**
 
-This website is fully integrated with the official **Shopify Storefront API** (`2025-01`) and **Shopify Customer Account API**.
+This website is fully integrated with the official **Shopify Storefront API** (`2026-10`, pinned in `src/lib/shopify.ts` — bump at least yearly; Shopify keeps each stable version for 12 months and silently falls forward to the oldest supported version afterwards) and **Shopify Customer Account API**.
 
 ---
 
@@ -75,3 +75,43 @@ Once your `.env` has valid credentials and your store is active:
 2. Add an item to your bag: a real Shopify cart will be created in your store.
 3. Click **Proceed to Checkout**: you will be redirected to your official Shopify-hosted checkout (`https://thegoldcrownimitation.myshopify.com/...`) with all items and discounts applied.
 4. Sign in or register in the **Account** tab: uses official Shopify customer accounts and displays real placed orders.
+
+
+---
+
+## 4. Checkout, Payments & Orders (how it actually works)
+
+- **Checkout is Shopify-hosted.** "Proceed to Checkout" fetches a fresh `checkoutUrl` from the Storefront
+  Cart API and navigates the browser to it (`src/components/storefront/cart-context.tsx`).
+  Payment, taxes, shipping and **order creation all happen on Shopify's checkout** — this app never
+  sees card data, never creates orders, and has no payment webhooks (none are needed for this architecture).
+- **Payment gateways are configured in Shopify Admin only** (Settings → Payments): Shopify Payments,
+  a supported third-party provider (e.g. Razorpay's Shopify app), and/or manual methods such as
+  Cash on Delivery. The code does not know or assume which are enabled.
+- **Test payments** use the provider's test mode in Shopify Admin (e.g. Shopify's Bogus Gateway on a
+  development store, or the provider's own sandbox). Never run real payments to test.
+- **Orders** appear in Shopify Admin → Orders and in the customer's account (Orders tab, with the
+  Shopify order-status link and tracking).
+- **Discounts**: discount codes are applied on the cart; gift cards are entered at Shopify checkout.
+
+## 5. Required configuration
+
+| Variable | Scope | Required | Notes |
+| :--- | :--- | :--- | :--- |
+| `VITE_SHOPIFY_STORE_DOMAIN` | browser + server | yes | `your-store.myshopify.com` |
+| `VITE_SHOPIFY_STOREFRONT_TOKEN` | browser | yes | **Public** Storefront token only |
+| `SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_ID` | server | for sign-in | Headless channel → Customer Account API |
+| `SESSION_SECRET` | server | for sign-in | 32+ random chars (`openssl rand -base64 48`) |
+| `SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_SECRET` | server | only for confidential clients | Leave unset for public clients |
+| `SHOPIFY_CUSTOMER_ACCOUNT_REDIRECT_URI` | server | optional | Defaults to `<origin>/api/auth/callback` |
+| `SHOPIFY_CUSTOMER_ACCOUNT_LOGOUT_REDIRECT_URI` | server | optional | Defaults to `<origin>/` |
+
+Shopify Admin → Headless → Customer Account API must list the **callback URI**
+(`https://<your-domain>/api/auth/callback`), the **JavaScript origin** (`https://<your-domain>`) and
+the **logout URI** (`https://<your-domain>/`). Shopify does not accept `localhost`/`http` URLs —
+use an HTTPS tunnel (e.g. ngrok) for local sign-in testing.
+
+Storefront API scopes needed on the Headless token: `unauthenticated_read_product_listings`,
+`unauthenticated_read_product_inventory`, `unauthenticated_read_product_tags`,
+`unauthenticated_read_collection_listings`, `unauthenticated_write_checkouts`,
+`unauthenticated_read_checkouts`. (Customer scopes are only needed for legacy accounts.)

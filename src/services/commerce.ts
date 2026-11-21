@@ -30,7 +30,9 @@ export interface CartItem {
 export interface CommerceAdapter {
   listProducts(): Promise<Product[]>;
   getProduct(slug: string): Promise<Product | null>;
-  getCollectionProducts(handle: string): Promise<{ products: Product[]; title: string; description: string } | null>;
+  getCollectionProducts(
+    handle: string,
+  ): Promise<{ products: Product[]; title: string; description: string } | null>;
   searchProducts(query: string): Promise<Product[]>;
   getProductRecommendations(shopifyId: string): Promise<Product[]>;
 }
@@ -39,7 +41,7 @@ export interface CommerceAdapter {
 const ALIASES: Record<string, string> = {
   "necklace-sets": "necklaces",
   "bangles-bracelets": "bracelets",
-  "rings": "ring",
+  rings: "ring",
 };
 
 export const commerce: CommerceAdapter = {
@@ -48,13 +50,9 @@ export const commerce: CommerceAdapter = {
       return [];
     }
 
-    try {
-      const shopifyProducts = await fetchAllShopifyProducts();
-      return shopifyProducts;
-    } catch (err) {
-      console.error("[commerce] Failed to fetch products from Shopify:", err);
-      return [];
-    }
+    // Let failures propagate so the UI can show its error state instead of a misleading
+    // "no products found" when the Storefront API is down or misconfigured.
+    return fetchAllShopifyProducts();
   },
 
   async getProduct(slug: string): Promise<Product | null> {
@@ -67,7 +65,9 @@ export const commerce: CommerceAdapter = {
     }
   },
 
-  async getCollectionProducts(handle: string): Promise<{ products: Product[]; title: string; description: string } | null> {
+  async getCollectionProducts(
+    handle: string,
+  ): Promise<{ products: Product[]; title: string; description: string } | null> {
     const realHandle = ALIASES[handle] ?? handle;
 
     if (isShopifyConfigured) {
@@ -107,7 +107,9 @@ export const commerce: CommerceAdapter = {
 
         return {
           products: matched,
-          title: titleMap[realHandle] ?? realHandle.replaceAll("-", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          title:
+            titleMap[realHandle] ??
+            realHandle.replaceAll("-", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
           description: "",
         };
       } catch (err) {
@@ -146,7 +148,9 @@ export const commerce: CommerceAdapter = {
       try {
         const all = await fetchAllShopifyProducts();
         return all.filter((p) => p.shopifyId !== shopifyId).slice(0, 4);
-      } catch {}
+      } catch (err) {
+        console.warn("[commerce] Recommendation fallback failed:", err);
+      }
     }
 
     return [];

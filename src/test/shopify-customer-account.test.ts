@@ -39,7 +39,8 @@ describe("Shopify Customer Account API & Auth Tests", () => {
 
   it("handles logout and clears session cookie", async () => {
     const req = new Request("https://thegoldcrownjewellery.com/api/auth/logout", {
-      headers: { Accept: "application/json" },
+      method: "POST",
+      headers: { Accept: "application/json", Origin: "https://thegoldcrownjewellery.com" },
     });
     const res = await handleAuthLogout(req);
     expect(res.status).toBe(200);

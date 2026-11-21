@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ShoppingBag, Minus, Plus, Trash2, Tag, Loader2, AlertCircle, ExternalLink, Lock, ArrowRight, ShieldCheck } from "lucide-react";
+import {
+  ShoppingBag,
+  Minus,
+  Plus,
+  Trash2,
+  Tag,
+  Loader2,
+  AlertCircle,
+  ExternalLink,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+} from "lucide-react";
 import { useCart } from "./cart-context";
 import { products as demoProducts, money } from "@/data/store";
 import { Button } from "@/components/ui/button";
@@ -16,8 +28,23 @@ export function CartPage() {
 // ─── Shopify Cart Page ────────────────────────────────────────────────────────
 
 function ShopifyCartPage() {
-  const { lines, count, subtotal, total, checkoutUrl, discountCodes, loading, isCheckingOut, error, checkoutError,
-    updateItem, removeItem, applyDiscount, removeDiscount, openCheckout } = useCart();
+  const {
+    lines,
+    count,
+    subtotal,
+    total,
+    checkoutUrl,
+    discountCodes,
+    loading,
+    isCheckingOut,
+    error,
+    checkoutError,
+    updateItem,
+    removeItem,
+    applyDiscount,
+    removeDiscount,
+    openCheckout,
+  } = useCart();
   const [discountInput, setDiscountInput] = useState("");
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [applyingDiscount, setApplyingDiscount] = useState(false);
@@ -107,9 +134,7 @@ function ShopifyCartPage() {
                   <Link to="/products/$slug" params={{ slug: line.handle }}>
                     <h2>{line.productTitle}</h2>
                   </Link>
-                  <p>
-                    {line.variantTitle !== "Default Title" ? line.variantTitle : ""}
-                  </p>
+                  <p>{line.variantTitle !== "Default Title" ? line.variantTitle : ""}</p>
                   <div className="quantity-control">
                     <Button
                       variant="ghost"
@@ -136,7 +161,9 @@ function ShopifyCartPage() {
                   <div className="cart-line-price">
                     <span>{money(line.price * line.quantity, line.currencyCode)}</span>
                     {line.compareAtPrice && line.compareAtPrice > line.price && (
-                      <span className="cart-line-compare">{money(line.compareAtPrice * line.quantity, line.currencyCode)}</span>
+                      <span className="cart-line-compare">
+                        {money(line.compareAtPrice * line.quantity, line.currencyCode)}
+                      </span>
                     )}
                   </div>
                   <div className="mt-5">
@@ -211,9 +238,7 @@ function ShopifyCartPage() {
               {discountError && <p className="discount-error">{discountError}</p>}
             </div>
 
-            <p className="cart-tax-note">
-              Taxes and shipping are calculated at checkout.
-            </p>
+            <p className="cart-tax-note">Taxes and shipping are calculated at checkout.</p>
 
             {checkoutError && (
               <div
@@ -258,12 +283,29 @@ function ShopifyCartPage() {
                 textAlign: "center",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.45rem", fontSize: "0.82rem", fontWeight: 500 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.45rem",
+                  fontSize: "0.82rem",
+                  fontWeight: 500,
+                }}
+              >
                 <ShieldCheck size={16} className="text-primary" />
-                <span>100% Secure Checkout powered by Shopify & Razorpay</span>
+                <span>Secure checkout powered by Shopify</span>
               </div>
-              <p style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))", marginTop: "0.35rem", marginBottom: 0 }}>
-                Accepting UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, NetBanking (50+ Banks) & Wallets.
+              <p
+                style={{
+                  fontSize: "0.75rem",
+                  color: "hsl(var(--muted-foreground))",
+                  marginTop: "0.35rem",
+                  marginBottom: 0,
+                }}
+              >
+                Accepting UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, NetBanking (50+
+                Banks) & Wallets.
               </p>
             </div>
 
@@ -282,7 +324,8 @@ function ShopifyCartPage() {
 function DemoCartPage() {
   const { items, update, remove } = useCart();
   const total = items.reduce(
-    (n, item) => n + (demoProducts.find((p) => p.id === item.productId)?.price ?? 0) * item.quantity,
+    (n, item) =>
+      n + (demoProducts.find((p) => p.id === item.productId)?.price ?? 0) * item.quantity,
     0,
   );
 
